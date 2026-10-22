@@ -1,0 +1,3375 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>消课管理系统</title>
+    <script src="/vendor/tailwind.js"></script>
+    <link href="/vendor/font-awesome.min.css" rel="stylesheet" />
+    <script src="/vendor/xlsx.full.min.js"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              primary: "#3b82f6",
+              secondary: "#10b981",
+              accent: "#f59e0b",
+              danger: "#ef4444",
+              dark: "#1e293b",
+              light: "#f8fafc",
+            },
+            fontFamily: {
+              sans: ["Inter", "system-ui", "sans-serif"],
+            },
+          },
+        },
+      };
+    </script>
+    <style type="text/tailwindcss">
+      @layer base {
+        body {
+          font:
+            14px / 1.5 Helvetica Neue,
+            Helvetica,
+            Arial,
+            Microsoft Yahei,
+            Hiragino Sans GB,
+            Heiti SC,
+            WenQuanYi Micro Hei,
+            sans-serif;
+        }
+      }
+      @layer utilities {
+        .content-auto {
+          content-visibility: auto;
+        }
+        .transition-all {
+          transition: all 0.3s ease;
+        }
+        .shadow-hover {
+          @apply transition-all duration-300 hover:shadow-lg;
+        }
+        .animate-fade-in {
+          animation: fadeIn 0.5s ease-in-out;
+        }
+        .animate-slide-in {
+          animation: slideIn 0.3s ease-out;
+        }
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        @keyframes slideIn {
+          from {
+            opacity: 0;
+            transform: translateX(-20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
+        .card {
+          @apply bg-white rounded-lg shadow-md overflow-hidden transition-all duration-300 hover:shadow-lg;
+        }
+        .btn {
+          @apply px-6 py-3 rounded-md transition-all duration-300 font-medium text-base;
+        }
+        .btn-primary {
+          @apply bg-primary text-white hover:bg-blue-600;
+        }
+        .btn-secondary {
+          @apply bg-secondary text-white hover:bg-green-600;
+        }
+        .btn-accent {
+          @apply bg-accent text-white hover:bg-amber-600;
+        }
+        .btn-gray {
+          @apply bg-gray-700 text-white hover:bg-gray-800;
+        }
+        .btn-outline {
+          @apply border border-gray-300 text-gray-700 hover:bg-gray-100;
+        }
+      }
+    </style>
+  </head>
+  <body class="bg-gray-50 min-h-screen">
+    <!-- 顶部导航栏 -->
+    <nav class="bg-white shadow-md">
+      <div
+        class="container mx-auto px-4 py-3 flex justify-between items-center"
+      >
+        <div class="flex items-center space-x-2">
+          <!-- logo图片 -->
+          <img src="/emage/logo.jpg" alt="logo" class="h-10 w-10" />
+          <h1 class="text-xl font-bold text-gray-800">消课管理系统</h1>
+        </div>
+        <div class="flex space-x-4">
+          <button id="nav-members" class="btn btn-primary">会员管理</button>
+          <button id="nav-schedule" class="btn btn-outline">排课管理</button>
+        </div>
+      </div>
+    </nav>
+
+    <!-- 主内容区 -->
+    <main class="container mx-auto px-4 py-6">
+      <!-- 会员管理页面 -->
+      <div id="members-page" class="block">
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-2xl font-bold text-gray-800">会员列表</h2>
+          <div class="flex space-x-3">
+            <button
+              id="activity-management-btn"
+              class="btn btn-accent flex items-center"
+            >
+              <i class="fa fa-cog mr-2"></i>活动管理
+            </button>
+            <button
+              id="add-member-btn"
+              class="btn btn-secondary flex items-center"
+            >
+              <i class="fa fa-plus mr-2"></i>添加会员
+            </button>
+            <button
+              id="export-members"
+              class="btn btn-accent flex items-center"
+            >
+              <i class="fa fa-download mr-2"></i>导出Excel
+            </button>
+            <button id="import-members" class="btn btn-gray flex items-center">
+              <i class="fa fa-upload mr-2"></i>导入Excel
+            </button>
+            <button
+              id="refresh-data-btn"
+              class="btn btn-primary flex items-center"
+            >
+              <i class="fa fa-refresh mr-2"></i>刷新数据
+            </button>
+            <input
+              type="file"
+              id="file-input"
+              accept=".xlsx, .xls"
+              class="hidden"
+            />
+          </div>
+        </div>
+
+        <!-- 到期提醒组件 -->
+        <div id="expiry-alerts" class="mb-6 card animate-fade-in">
+          <div
+            class="p-4 flex justify-between items-center cursor-pointer"
+            onclick="toggleExpiryAlerts()"
+          >
+            <h3 class="text-lg font-semibold text-gray-800 flex items-center">
+              <i class="fa fa-bell text-accent mr-2"></i>到期提醒
+            </h3>
+            <i
+              id="alert-toggle-icon"
+              class="fa fa-chevron-down text-gray-500"
+            ></i>
+          </div>
+          <div
+            id="alert-content"
+            class="space-y-2 p-0 p-4 border-t border-gray-200"
+          >
+            <!-- 提醒内容将通过JavaScript动态添加 -->
+          </div>
+        </div>
+
+        <!-- 查找功能 -->
+        <div class="mb-6">
+          <div class="relative flex items-center w-full">
+            <input
+              type="text"
+              id="search-input"
+              placeholder="根据姓名查找会员"
+              class="w-full px-5 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-base"
+            />
+            <button
+              id="search-btn"
+              class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-primary text-lg"
+            >
+              <i class="fa fa-search"></i>
+            </button>
+            <button
+              id="exit-search-btn"
+              class="ml-3 btn btn-outline flex items-center hidden"
+              aria-label="退出搜索状态，清空所有查询条件"
+              title="退出搜索"
+            >
+              <i class="fa fa-times mr-1"></i>退出搜索
+            </button>
+          </div>
+        </div>
+
+        <!-- 会员表格 -->
+        <div class="card">
+          <div class="overflow-x-auto">
+            <table class="w-full">
+              <thead class="bg-gray-100">
+                <tr>
+                  <th
+                    class="px-6 py-4 text-left text-base font-medium text-gray-700"
+                  >
+                    姓名
+                  </th>
+                  <th
+                    class="px-6 py-4 text-left text-base font-medium text-gray-700"
+                  >
+                    卡型
+                  </th>
+                  <th
+                    class="px-6 py-4 text-left text-base font-medium text-gray-700"
+                  >
+                    年龄
+                  </th>
+                  <th
+                    class="px-6 py-4 text-left text-base font-medium text-gray-700"
+                  >
+                    开卡时间
+                  </th>
+                  <th
+                    class="px-6 py-4 text-left text-base font-medium text-gray-700"
+                  >
+                    到期日期
+                  </th>
+                  <th
+                    class="px-6 py-4 text-left text-base font-medium text-gray-700"
+                  >
+                    课时
+                  </th>
+                  <th
+                    class="px-6 py-4 text-left text-base font-medium text-gray-700"
+                  >
+                    剩余课时
+                  </th>
+                  <th
+                    class="px-6 py-4 text-left text-base font-medium text-gray-700"
+                  >
+                    备注
+                  </th>
+                  <th
+                    class="px-6 py-4 text-left text-base font-medium text-gray-700"
+                  >
+                    操作
+                  </th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-200" id="members-table-body">
+                <!-- 会员数据将通过JavaScript动态添加 -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- 排课管理页面 -->
+      <div id="schedule-page" class="hidden">
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-2xl font-bold text-gray-800">排课表</h2>
+          <div class="flex space-x-3">
+            <button
+              id="add-schedule-btn"
+              class="btn btn-secondary flex items-center"
+            >
+              <i class="fa fa-plus mr-2"></i>添加排课
+            </button>
+            <button
+              id="add-uncertain-btn"
+              class="btn btn-secondary flex items-center"
+            >
+              <i class="fa fa-plus mr-2"></i>添加不确定情况
+            </button>
+            <button
+              id="add-irregular-btn"
+              class="btn btn-secondary flex items-center"
+            >
+              <i class="fa fa-plus mr-2"></i>添加不定时上课
+            </button>
+            <button
+              id="export-schedule"
+              class="btn btn-accent flex items-center"
+            >
+              <i class="fa fa-download mr-2"></i>导出Excel
+            </button>
+            <button id="import-schedule" class="btn btn-gray flex items-center">
+              <i class="fa fa-upload mr-2"></i>导入Excel
+            </button>
+            <input
+              type="file"
+              id="schedule-file-input"
+              accept=".xlsx, .xls"
+              class="hidden"
+            />
+          </div>
+        </div>
+
+        <!-- 排课表格查找功能 -->
+        <div class="mb-6">
+          <div class="relative flex items-center w-full">
+            <input
+              type="text"
+              id="schedule-search-input"
+              placeholder="查找排课"
+              class="w-full px-5 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-base"
+            />
+            <button
+              id="schedule-search-btn"
+              class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-primary text-lg"
+            >
+              <i class="fa fa-search"></i>
+            </button>
+            <button
+              id="schedule-exit-search-btn"
+              class="ml-3 btn btn-outline flex items-center hidden"
+              aria-label="退出搜索状态，清空所有查询条件"
+              title="退出搜索"
+            >
+              <i class="fa fa-times mr-1"></i>退出搜索
+            </button>
+          </div>
+        </div>
+
+        <!-- 排课表格 -->
+        <div class="card mb-6">
+          <div class="overflow-x-auto">
+            <table class="w-full">
+              <thead class="bg-gray-100">
+                <tr>
+                  <th
+                    class="px-4 py-3 text-left text-sm font-medium text-gray-700"
+                  >
+                    时间
+                  </th>
+                  <th
+                    class="px-4 py-3 text-left text-sm font-medium text-gray-700"
+                  >
+                    星期一
+                  </th>
+                  <th
+                    class="px-4 py-3 text-left text-sm font-medium text-gray-700"
+                  >
+                    星期二
+                  </th>
+                  <th
+                    class="px-4 py-3 text-left text-sm font-medium text-gray-700"
+                  >
+                    星期三
+                  </th>
+                  <th
+                    class="px-4 py-3 text-left text-sm font-medium text-gray-700"
+                  >
+                    星期四
+                  </th>
+                  <th
+                    class="px-4 py-3 text-left text-sm font-medium text-gray-700"
+                  >
+                    星期五
+                  </th>
+                  <th
+                    class="px-4 py-3 text-left text-sm font-medium text-gray-700"
+                  >
+                    星期六
+                  </th>
+                  <th
+                    class="px-4 py-3 text-left text-sm font-medium text-gray-700"
+                  >
+                    星期日
+                  </th>
+                  <th
+                    class="px-4 py-3 text-left text-sm font-medium text-gray-700"
+                  >
+                    操作
+                  </th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-200" id="schedule-table-body">
+                <!-- 排课数据将通过JavaScript动态添加 -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 不确定情况列表查找功能 -->
+        <div class="mb-6">
+          <div class="relative flex items-center w-full">
+            <input
+              type="text"
+              id="uncertain-search-input"
+              placeholder="查找不确定情况"
+              class="w-full px-5 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-base"
+            />
+            <button
+              id="uncertain-search-btn"
+              class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-primary text-lg"
+            >
+              <i class="fa fa-search"></i>
+            </button>
+            <button
+              id="uncertain-exit-search-btn"
+              class="ml-3 btn btn-outline flex items-center hidden"
+              aria-label="退出搜索状态，清空所有查询条件"
+              title="退出搜索"
+            >
+              <i class="fa fa-times mr-1"></i>退出搜索
+            </button>
+          </div>
+        </div>
+
+        <!-- 不确定情况列表 -->
+        <div class="card mb-6">
+          <div class="p-4 border-b border-gray-200">
+            <h3 class="text-lg font-semibold text-gray-800">不确定情况列表</h3>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full">
+              <thead class="bg-gray-100">
+                <tr>
+                  <th
+                    class="px-4 py-3 text-left text-sm font-medium text-gray-700"
+                  >
+                    日期
+                  </th>
+                  <th
+                    class="px-4 py-3 text-left text-sm font-medium text-gray-700"
+                  >
+                    时间
+                  </th>
+                  <th
+                    class="px-4 py-3 text-left text-sm font-medium text-gray-700"
+                  >
+                    姓名
+                  </th>
+                  <th
+                    class="px-4 py-3 text-left text-sm font-medium text-gray-700"
+                  >
+                    课程
+                  </th>
+                  <th
+                    class="px-4 py-3 text-left text-sm font-medium text-gray-700"
+                  >
+                    备注
+                  </th>
+                  <th
+                    class="px-4 py-3 text-left text-sm font-medium text-gray-700"
+                  >
+                    操作
+                  </th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-200" id="uncertain-table-body">
+                <!-- 不确定情况数据将通过JavaScript动态添加 -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 不定时上课列表查找功能 -->
+        <div class="mb-6">
+          <div class="relative flex items-center w-full">
+            <input
+              type="text"
+              id="irregular-search-input"
+              placeholder="查找不定时上课"
+              class="w-full px-5 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-base"
+            />
+            <button
+              id="irregular-search-btn"
+              class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-primary text-lg"
+            >
+              <i class="fa fa-search"></i>
+            </button>
+            <button
+              id="irregular-exit-search-btn"
+              class="ml-3 btn btn-outline flex items-center hidden"
+              aria-label="退出搜索状态，清空所有查询条件"
+              title="退出搜索"
+            >
+              <i class="fa fa-times mr-1"></i>退出搜索
+            </button>
+          </div>
+        </div>
+
+        <!-- 不定时上课列表 -->
+        <div class="card">
+          <div class="p-4 border-b border-gray-200">
+            <h3 class="text-lg font-semibold text-gray-800">不定时上课列表</h3>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full">
+              <thead class="bg-gray-100">
+                <tr>
+                  <th
+                    class="px-4 py-3 text-left text-sm font-medium text-gray-700"
+                  >
+                    日期
+                  </th>
+                  <th
+                    class="px-4 py-3 text-left text-sm font-medium text-gray-700"
+                  >
+                    时间
+                  </th>
+                  <th
+                    class="px-4 py-3 text-left text-sm font-medium text-gray-700"
+                  >
+                    姓名
+                  </th>
+                  <th
+                    class="px-4 py-3 text-left text-sm font-medium text-gray-700"
+                  >
+                    课程
+                  </th>
+                  <th
+                    class="px-4 py-3 text-left text-sm font-medium text-gray-700"
+                  >
+                    备注
+                  </th>
+                  <th
+                    class="px-4 py-3 text-left text-sm font-medium text-gray-700"
+                  >
+                    操作
+                  </th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-200" id="irregular-table-body">
+                <!-- 不定时上课数据将通过JavaScript动态添加 -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- 添加会员模态框 -->
+    <div
+      id="add-member-modal"
+      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden"
+    >
+      <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-xl font-bold text-gray-800">添加会员</h3>
+          <button id="close-modal" class="text-gray-500 hover:text-gray-700">
+            <i class="fa fa-times text-xl"></i>
+          </button>
+        </div>
+        <form id="add-member-form">
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1"
+                >姓名</label
+              >
+              <input
+                type="text"
+                name="name"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                required
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1"
+                >卡型</label
+              >
+              <select
+                name="cardType"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                required
+              >
+                <option value="课时年卡">课时年卡</option>
+                <option value="课时季度卡">课时季度卡</option>
+                <option value="课时半年卡">课时半年卡</option>
+                <option value="年卡">年卡</option>
+                <option value="199活动会员">199活动会员</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1"
+                >年龄</label
+              >
+              <input
+                type="number"
+                name="age"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                required
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1"
+                >开卡时间</label
+              >
+              <input
+                type="date"
+                name="startDate"
+                id="startDate"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                required
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1"
+                >到期日期</label
+              >
+              <input
+                type="date"
+                name="endDate"
+                id="endDate"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                required
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1"
+                >课时</label
+              >
+              <input
+                type="number"
+                name="totalClasses"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                required
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1"
+                >剩余课时</label
+              >
+              <input
+                type="number"
+                name="remainingClasses"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                required
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1"
+                >备注</label
+              >
+              <textarea
+                name="remark"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+              ></textarea>
+            </div>
+          </div>
+          <div class="mt-6 flex justify-end space-x-3">
+            <button type="button" id="cancel-add" class="btn btn-outline">
+              取消
+            </button>
+            <button type="submit" class="btn btn-primary">添加</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 会员续费模态框 -->
+    <div
+      id="renew-member-modal"
+      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden"
+    >
+      <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-xl font-bold text-gray-800">会员续费</h3>
+          <button
+            id="close-renew-modal"
+            class="text-gray-500 hover:text-gray-700"
+          >
+            <i class="fa fa-times text-xl"></i>
+          </button>
+        </div>
+        <form id="renew-member-form">
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1"
+                >姓名</label
+              >
+              <input
+                type="text"
+                name="name"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                readonly
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1"
+                >原到期日期</label
+              >
+              <input
+                type="date"
+                name="oldEndDate"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                readonly
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1"
+                >新到期日期</label
+              >
+              <input
+                type="date"
+                name="newEndDate"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                required
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1"
+                >续费课时</label
+              >
+              <input
+                type="number"
+                name="addClasses"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                required
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1"
+                >备注</label
+              >
+              <textarea
+                name="remark"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+              ></textarea>
+            </div>
+          </div>
+          <div class="mt-6 flex justify-end space-x-3">
+            <button type="button" id="cancel-renew" class="btn btn-outline">
+              取消
+            </button>
+            <button type="submit" class="btn btn-primary">确认续费</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 添加排课模态框 -->
+    <div
+      id="add-schedule-modal"
+      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden"
+    >
+      <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full p-6">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-xl font-bold text-gray-800">添加排课</h3>
+          <button
+            id="close-schedule-modal"
+            class="text-gray-500 hover:text-gray-700"
+          >
+            <i class="fa fa-times text-xl"></i>
+          </button>
+        </div>
+        <form id="add-schedule-form">
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1"
+                >时间</label
+              >
+              <input
+                type="time"
+                name="time"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                required
+              />
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1"
+                  >星期一</label
+                >
+                <input
+                  type="text"
+                  name="monday"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1"
+                  >星期二</label
+                >
+                <input
+                  type="text"
+                  name="tuesday"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1"
+                  >星期三</label
+                >
+                <input
+                  type="text"
+                  name="wednesday"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1"
+                  >星期四</label
+                >
+                <input
+                  type="text"
+                  name="thursday"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1"
+                  >星期五</label
+                >
+                <input
+                  type="text"
+                  name="friday"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1"
+                  >星期六</label
+                >
+                <input
+                  type="text"
+                  name="saturday"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1"
+                  >星期日</label
+                >
+                <input
+                  type="text"
+                  name="sunday"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
+              </div>
+            </div>
+          </div>
+          <div class="mt-6 flex justify-end space-x-3">
+            <button type="button" id="cancel-schedule" class="btn btn-outline">
+              取消
+            </button>
+            <button type="submit" class="btn btn-primary">添加</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 添加不确定情况模态框 -->
+    <div
+      id="add-uncertain-modal"
+      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden"
+    >
+      <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-xl font-bold text-gray-800">添加不确定情况</h3>
+          <button
+            id="close-uncertain-modal"
+            class="text-gray-500 hover:text-gray-700"
+          >
+            <i class="fa fa-times text-xl"></i>
+          </button>
+        </div>
+        <form id="add-uncertain-form">
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1"
+                >日期</label
+              >
+              <input
+                type="date"
+                name="date"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                required
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1"
+                >时间</label
+              >
+              <input
+                type="time"
+                name="time"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                required
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1"
+                >姓名</label
+              >
+              <input
+                type="text"
+                name="name"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                required
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1"
+                >课程</label
+              >
+              <input
+                type="text"
+                name="course"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                required
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1"
+                >备注</label
+              >
+              <textarea
+                name="remark"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+              ></textarea>
+            </div>
+          </div>
+          <div class="mt-6 flex justify-end space-x-3">
+            <button type="button" id="cancel-uncertain" class="btn btn-outline">
+              取消
+            </button>
+            <button type="submit" class="btn btn-primary">添加</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 添加不定时上课模态框 -->
+    <div
+      id="add-irregular-modal"
+      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden"
+    >
+      <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-xl font-bold text-gray-800">添加不定时上课</h3>
+          <button
+            id="close-irregular-modal"
+            class="text-gray-500 hover:text-gray-700"
+          >
+            <i class="fa fa-times text-xl"></i>
+          </button>
+        </div>
+        <form id="add-irregular-form">
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1"
+                >日期</label
+              >
+              <input
+                type="date"
+                name="date"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                required
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1"
+                >时间</label
+              >
+              <input
+                type="time"
+                name="time"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                required
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1"
+                >姓名</label
+              >
+              <input
+                type="text"
+                name="name"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                required
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1"
+                >课程</label
+              >
+              <input
+                type="text"
+                name="course"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                required
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1"
+                >备注</label
+              >
+              <textarea
+                name="remark"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+              ></textarea>
+            </div>
+          </div>
+          <div class="mt-6 flex justify-end space-x-3">
+            <button type="button" id="cancel-irregular" class="btn btn-outline">
+              取消
+            </button>
+            <button type="submit" class="btn btn-primary">添加</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 编辑班级学生模态框 -->
+    <div
+      id="edit-class-students-modal"
+      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden"
+    >
+      <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-xl font-bold text-gray-800">编辑班级学生</h3>
+          <button
+            id="close-class-students-modal"
+            class="text-gray-500 hover:text-gray-700"
+          >
+            <i class="fa fa-times text-xl"></i>
+          </button>
+        </div>
+        <form id="edit-class-students-form">
+          <input type="hidden" id="current-class-name" />
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1"
+                >班级名称</label
+              >
+              <input
+                type="text"
+                id="class-name-input"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                readonly
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1"
+                >学生列表（每行一个名字）</label
+              >
+              <textarea
+                id="students-input"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                rows="10"
+                required
+              ></textarea>
+              <p class="text-xs text-gray-500 mt-1">请每行输入一个学生名字</p>
+            </div>
+          </div>
+          <div class="mt-6 flex justify-end space-x-3">
+            <button
+              type="button"
+              id="cancel-class-students"
+              class="btn btn-outline"
+            >
+              取消
+            </button>
+            <button type="submit" class="btn btn-primary">保存</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 活动管理模态框 -->
+    <div
+      id="activity-management-modal"
+      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden"
+    >
+      <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-xl font-bold text-gray-800">活动管理</h3>
+          <button
+            id="close-activity-modal"
+            class="text-gray-500 hover:text-gray-700"
+          >
+            <i class="fa fa-times text-xl"></i>
+          </button>
+        </div>
+        <div class="space-y-4">
+          <div>
+            <h4 class="text-lg font-medium text-gray-700 mb-2">活动列表</h4>
+            <div id="activity-list" class="space-y-2">
+              <!-- 活动列表将通过JavaScript动态添加 -->
+            </div>
+          </div>
+          <div>
+            <h4 class="text-lg font-medium text-gray-700 mb-2">添加新活动</h4>
+            <input
+              type="text"
+              id="new-activity-name"
+              placeholder="输入活动名称"
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+            />
+            <button id="add-activity-btn" class="btn btn-primary mt-3 w-full">
+              添加活动
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const AUTH_TOKEN_KEY = "auth_token";
+
+      // 初始化数据 - 必须在所有函数之前声明
+      let members = [];
+      let activityMembers = {};
+      let activities = [];
+      let schedule = [];
+      let uncertain = [];
+      let irregular = [];
+      let classStudents = {};
+
+      // 分页相关变量
+      let currentPage = 1;
+      const pageSize = 10;
+
+      let saveTimer = null;
+      let lastSaveFailedAt = 0;
+
+      function getAuthToken() {
+        return localStorage.getItem(AUTH_TOKEN_KEY);
+      }
+
+      function goToLogin() {
+        try {
+          if (window.top && window.top !== window) {
+            window.top.location.href = "/login";
+          } else {
+            window.location.href = "/login";
+          }
+        } catch {
+          window.location.href = "/login";
+        }
+      }
+
+      function loadData() {
+        const token = getAuthToken();
+        if (!token) {
+          goToLogin();
+          return Promise.resolve(getDefaultData());
+        }
+
+        return fetch("/api/state", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+          .then(async (response) => {
+            if (response.status === 401) {
+              goToLogin();
+              throw new Error("Unauthorized");
+            }
+            if (!response.ok) {
+              throw new Error(`HTTP ${response.status}`);
+            }
+            const json = await response.json();
+            return json.state;
+          })
+          .catch(() => {
+            return Promise.resolve(getDefaultData());
+          });
+      }
+
+      function getDefaultData() {
+        return {
+          members: [],
+          activityMembers: {},
+          activities: [],
+          schedule: [],
+          uncertain: [],
+          irregular: [],
+          classStudents: {},
+        };
+      }
+
+      function buildStatePayload() {
+        return {
+          members,
+          activityMembers,
+          activities,
+          schedule,
+          uncertain,
+          irregular,
+          classStudents,
+        };
+      }
+
+      function pushStateToServer() {
+        const token = getAuthToken();
+        if (!token) {
+          goToLogin();
+          return;
+        }
+        fetch("/api/state", {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(buildStatePayload()),
+        })
+          .then((r) => {
+            if (r.status === 401) {
+              goToLogin();
+              throw new Error("Unauthorized");
+            }
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            return r.json();
+          })
+          .then((json) => {
+            if (json && json.state) {
+              members = json.state.members || members;
+              activityMembers = json.state.activityMembers || activityMembers;
+              activities = json.state.activities || activities;
+              schedule = json.state.schedule || schedule;
+              uncertain = json.state.uncertain || uncertain;
+              irregular = json.state.irregular || irregular;
+              classStudents = json.state.classStudents || classStudents;
+            }
+          })
+          .catch(() => {
+            const now = Date.now();
+            if (now - lastSaveFailedAt > 10000) {
+              lastSaveFailedAt = now;
+              alert("保存到服务器失败，请检查网络或后端服务是否启动。");
+            }
+          });
+      }
+
+      function saveData() {
+        try {
+          if (saveTimer) clearTimeout(saveTimer);
+          saveTimer = setTimeout(() => {
+            pushStateToServer();
+          }, 400);
+          return true;
+        } catch {
+          alert("保存失败，请重试！");
+          return false;
+        }
+      }
+
+      // 设置日期默认值
+      function setDefaultDates() {
+        const today = new Date();
+        const todayStr = today.toISOString().split('T')[0];
+        
+        // 设置开卡时间默认为今天
+        const startDateInput = document.getElementById('startDate');
+        if (startDateInput && !startDateInput.value) {
+          startDateInput.value = todayStr;
+        }
+        
+        // 设置到期日期默认为一年后
+        const nextYear = new Date(today);
+        nextYear.setFullYear(today.getFullYear() + 1);
+        const nextYearStr = nextYear.toISOString().split('T')[0];
+        
+        const endDateInput = document.getElementById('endDate');
+        if (endDateInput && !endDateInput.value) {
+          endDateInput.value = nextYearStr;
+        }
+      }
+
+      // 加载数据
+      function initializeApp() {
+        // 先设置日期默认值
+        setDefaultDates();
+        
+        loadData().then((data) => {
+          members = data.members;
+          activityMembers = data.activityMembers;
+          if (Array.isArray(data.activities)) {
+            activities = data.activities;
+          }
+          schedule = data.schedule;
+          uncertain = data.uncertain;
+          irregular = data.irregular;
+          classStudents = data.classStudents;
+
+          // 批量添加数据（只在数据为空时）
+          // batch add removed (data loaded from API)
+
+          // 渲染表格
+          renderMembersTable();
+          renderScheduleTable();
+          renderUncertainTable();
+          renderIrregularTable();
+          renderActivityList();
+          updateCardTypeOptions();
+          
+          // 检查到期提醒
+          checkExpiryAlerts();
+        });
+      }
+
+      // 计算两个日期之间的天数差
+      function getDaysDiff(endDateStr) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // 处理不同格式的日期
+        let endDate;
+        if (endDateStr.includes("-")) {
+          // 处理年月格式如"2025-02"
+          if (endDateStr.split("-").length === 2) {
+            const parts = endDateStr.split("-");
+            endDate = new Date(parts[0], parts[1] - 1, 1);
+            // 设置为该月的最后一天
+            endDate.setMonth(endDate.getMonth() + 1);
+            endDate.setDate(0);
+          } else {
+            endDate = new Date(endDateStr);
+          }
+        } else if (endDateStr.includes("/")) {
+          const parts = endDateStr.split("/");
+          endDate = new Date(parts[2], parts[1] - 1, parts[0]);
+        } else if (endDateStr.includes("、")) {
+          const parts = endDateStr.split("、");
+          endDate = new Date(parts[0], parts[1] - 1, 1);
+          // 设置为该月的最后一天
+          endDate.setMonth(endDate.getMonth() + 1);
+          endDate.setDate(0);
+        } else {
+          endDate = new Date(endDateStr);
+        }
+
+        // 检查日期是否有效
+        if (isNaN(endDate.getTime())) {
+          return 9999; // 返回一个很大的数字，表示日期无效
+        }
+
+        endDate.setHours(0, 0, 0, 0);
+        const diffTime = endDate - today;
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return diffDays;
+      }
+
+      // 检查到期提醒
+      function checkExpiryAlerts() {
+        const alertContent = document.getElementById("alert-content");
+        alertContent.innerHTML = "";
+
+        // 检查当前是否在活动会员页面
+        const pageTitle =
+          document.querySelector("#members-page h2").textContent;
+        let expiringMembers = [];
+
+        // 提取活动名称
+        if (pageTitle.includes("会员列表") && pageTitle !== "会员列表") {
+          const activityName = pageTitle.replace("会员列表", "").trim();
+          // 只显示当前活动的会员提醒
+          if (activityMembers[activityName]) {
+            expiringMembers = activityMembers[activityName].filter((member) => {
+              const daysDiff = getDaysDiff(member.endDate);
+              return daysDiff <= 10;
+            });
+          }
+        } else {
+          // 显示普通会员的提醒
+          expiringMembers = members.filter((member) => {
+            const daysDiff = getDaysDiff(member.endDate);
+            return daysDiff <= 10;
+          });
+        }
+
+        if (expiringMembers.length === 0) {
+          alertContent.innerHTML =
+            '<p class="text-gray-500 text-sm">暂无到期提醒</p>';
+          return;
+        }
+
+        expiringMembers.forEach((member) => {
+          const daysDiff = getDaysDiff(member.endDate);
+          let alertClass, alertText, iconClass;
+
+          if (daysDiff < 0) {
+            alertClass = "bg-red-100 border-red-400 text-red-800";
+            alertText = `已过期${Math.abs(daysDiff)}天`;
+            iconClass = "fa-exclamation-circle text-red-500";
+          } else if (daysDiff === 0) {
+            alertClass = "bg-red-100 border-red-400 text-red-800";
+            alertText = "今天到期";
+            iconClass = "fa-exclamation-circle text-red-500";
+          } else {
+            alertClass = "bg-red-100 border-red-400 text-red-800";
+            alertText = `${daysDiff}天后到期`;
+            iconClass = "fa-exclamation-circle text-red-500";
+          }
+
+          const alertDiv = document.createElement("div");
+          alertDiv.className = `${alertClass} p-3 rounded-md border-l-4 flex items-center justify-between animate-slide-in`;
+          alertDiv.innerHTML = `
+                    <div class="flex items-center">
+                        <i class="fa ${iconClass} mr-2"></i>
+                        <span><strong>${member.name}</strong> (${member.cardType}) - ${alertText}</span>
+                    </div>
+                    <span class="text-sm">到期日期: ${member.endDate}</span>
+                `;
+          alertContent.appendChild(alertDiv);
+        });
+      }
+
+      // 切换到期提醒的折叠状态
+      function toggleExpiryAlerts() {
+        const alertContent = document.getElementById("alert-content");
+        const toggleIcon = document.getElementById("alert-toggle-icon");
+
+        if (alertContent.style.display === "none") {
+          alertContent.style.display = "block";
+          toggleIcon.className = "fa fa-chevron-down text-gray-500";
+        } else {
+          alertContent.style.display = "none";
+          toggleIcon.className = "fa fa-chevron-up text-gray-500";
+        }
+      }
+
+      // 跳转到活动页面
+      function goToActivityPage(activityName) {
+        // 关闭活动管理模态框
+        document
+          .getElementById("activity-management-modal")
+          .classList.add("hidden");
+
+        // 确保在会员管理页面
+        document.getElementById("members-page").classList.remove("hidden");
+        document.getElementById("schedule-page").classList.add("hidden");
+        document.getElementById("nav-members").classList.remove("btn-outline");
+        document.getElementById("nav-members").classList.add("btn-primary");
+        document.getElementById("nav-schedule").classList.remove("btn-primary");
+        document.getElementById("nav-schedule").classList.add("btn-outline");
+
+        // 确保活动会员数据存在
+        if (!activityMembers[activityName]) {
+          activityMembers[activityName] = [];
+          saveData();
+        }
+
+        // 显示该活动的会员
+        renderActivityMembersTable(activityName);
+
+        // 显示活动会员标题
+        document.querySelector("#members-page h2").textContent =
+          `${activityName}会员列表`;
+
+        // 添加活动切换和返回按钮
+        const header = document.querySelector(
+          "#members-page .flex.justify-between",
+        );
+
+        // 移除已有的按钮（如果存在）
+        const existingBackButton = document.getElementById(
+          "back-to-all-members",
+        );
+        if (existingBackButton) {
+          existingBackButton.remove();
+        }
+
+        const existingActivityButtons =
+          document.getElementById("activity-buttons");
+        if (existingActivityButtons) {
+          existingActivityButtons.remove();
+        }
+
+        // 创建活动切换按钮容器
+        const activityButtonsContainer = document.createElement("div");
+        activityButtonsContainer.id = "activity-buttons";
+        activityButtonsContainer.className = "flex space-x-2";
+
+        // 添加返回全部会员按钮
+        const backButton = document.createElement("button");
+        backButton.className = "btn btn-outline flex items-center";
+        backButton.innerHTML =
+          '<i class="fa fa-arrow-left mr-2"></i>返回全部会员';
+        backButton.onclick = function () {
+          document.querySelector("#members-page h2").textContent = "会员列表";
+          activityButtonsContainer.remove();
+          renderMembersTable();
+        };
+        activityButtonsContainer.appendChild(backButton);
+
+        // 添加其他活动切换按钮
+        activities.forEach((activity) => {
+          if (activity !== activityName) {
+            const activityButton = document.createElement("button");
+            activityButton.className = "btn btn-accent flex items-center";
+            activityButton.innerHTML = activity;
+            activityButton.onclick = function () {
+              goToActivityPage(activity);
+            };
+            activityButtonsContainer.appendChild(activityButton);
+          }
+        });
+
+        // 添加活动切换按钮到头部
+        header.appendChild(activityButtonsContainer);
+
+        // 更新到期提醒
+        checkExpiryAlerts();
+      }
+
+      // 渲染活动会员表格
+      function renderActivityMembersTable(activityName) {
+        const tableBody = document.getElementById("members-table-body");
+        tableBody.innerHTML = "";
+
+        const currentActivityMembers = activityMembers[activityName] || [];
+        
+        // 计算分页数据
+        const totalItems = currentActivityMembers.length;
+        const totalPages = Math.ceil(totalItems / pageSize);
+        const startIndex = (currentPage - 1) * pageSize;
+        const endIndex = startIndex + pageSize;
+        const paginatedMembers = currentActivityMembers.slice(startIndex, endIndex);
+
+        paginatedMembers.forEach((member, index) => {
+          const originalIndex = startIndex + index;
+          const daysDiff = getDaysDiff(member.endDate);
+          let endDateClass = "";
+
+          if (daysDiff < 0) {
+            endDateClass = "bg-red-100 text-red-800 font-medium";
+          } else if (daysDiff <= 10) {
+            endDateClass = "bg-red-100 text-red-800 font-medium";
+          }
+
+          const row = document.createElement("tr");
+          row.className = "hover:bg-gray-50 transition-all";
+          row.innerHTML = `
+                    <td class="px-6 py-4 text-base text-gray-900">${member.name}</td>
+                    <td class="px-6 py-4 text-base text-gray-900">${member.cardType}</td>
+                    <td class="px-6 py-4 text-base text-gray-900">${member.age || "-"}</td>
+                    <td class="px-6 py-4 text-base text-gray-900">${member.startDate}</td>
+                    <td class="px-6 py-4 text-base ${endDateClass}">${member.endDate}</td>
+                    <td class="px-6 py-4 text-base text-gray-900">${member.totalClasses}</td>
+                    <td class="px-6 py-4 text-base text-gray-900">${member.remainingClasses}</td>
+                    <td class="px-6 py-4 text-base text-gray-900">${member.remark || "-"}</td>
+                    <td class="px-6 py-4 text-base">
+                        <button class="text-primary hover:text-blue-700 mr-4 text-lg" onclick="editActivityMember('${activityName}', ${originalIndex})" title="编辑会员"><i class="fa fa-pencil"></i></button>
+                        <button class="text-danger hover:text-red-700 mr-4 text-lg" onclick="renewActivityMember('${activityName}', ${originalIndex})" title="会员续费"><i class="fa fa-refresh"></i></button>
+                        <button class="text-danger hover:text-red-700 text-lg" onclick="deleteActivityMember('${activityName}', ${originalIndex})" title="删除当前会员"><i class="fa fa-trash"></i></button>
+                    </td>
+                `;
+          tableBody.appendChild(row);
+        });
+
+        // 渲染分页控件
+        renderActivityPagination(totalPages, activityName);
+      }
+
+      // 渲染活动会员分页控件
+      function renderActivityPagination(totalPages, activityName) {
+        const membersPage = document.getElementById("members-page");
+        let paginationContainer = document.getElementById("pagination-container");
+        
+        // 如果分页容器不存在，创建它
+        if (!paginationContainer) {
+          paginationContainer = document.createElement("div");
+          paginationContainer.id = "pagination-container";
+          paginationContainer.className = "mt-6 flex justify-center";
+          membersPage.appendChild(paginationContainer);
+        }
+        
+        // 清空分页容器
+        paginationContainer.innerHTML = "";
+        
+        // 创建分页控件
+        const pagination = document.createElement("div");
+        pagination.className = "inline-flex rounded-md shadow";
+        
+        // 上一页按钮
+        const prevButton = document.createElement("button");
+        prevButton.className = "px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-l-md";
+        prevButton.innerHTML = '<i class="fa fa-chevron-left"></i>';
+        prevButton.disabled = currentPage === 1;
+        prevButton.onclick = function() {
+          if (currentPage > 1) {
+            currentPage--;
+            renderActivityMembersTable(activityName);
+          }
+        };
+        pagination.appendChild(prevButton);
+        
+        // 页码按钮
+        for (let i = 1; i <= totalPages; i++) {
+          const pageButton = document.createElement("button");
+          pageButton.className = `px-4 py-2 border-t border-b border-gray-300 bg-white text-sm font-medium ${currentPage === i ? 'text-primary bg-blue-50' : 'text-gray-700 hover:bg-gray-50'}`;
+          pageButton.textContent = i;
+          pageButton.onclick = function() {
+            currentPage = i;
+            renderActivityMembersTable(activityName);
+          };
+          pagination.appendChild(pageButton);
+        }
+        
+        // 下一页按钮
+        const nextButton = document.createElement("button");
+        nextButton.className = "px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-r-md";
+        nextButton.innerHTML = '<i class="fa fa-chevron-right"></i>';
+        nextButton.disabled = currentPage === totalPages;
+        nextButton.onclick = function() {
+          if (currentPage < totalPages) {
+            currentPage++;
+            renderActivityMembersTable(activityName);
+          }
+        };
+        pagination.appendChild(nextButton);
+        
+        // 添加到容器
+        paginationContainer.appendChild(pagination);
+      }
+
+      // 渲染会员表格
+      function renderMembersTable() {
+        const tableBody = document.getElementById("members-table-body");
+        tableBody.innerHTML = "";
+
+        // 计算分页数据
+        const totalItems = members.length;
+        const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+        const startIndex = (currentPage - 1) * pageSize;
+        const endIndex = startIndex + pageSize;
+        const paginatedMembers = members.slice(startIndex, endIndex);
+
+        paginatedMembers.forEach((member, index) => {
+          const originalIndex = startIndex + index;
+          const daysDiff = getDaysDiff(member.endDate);
+          let endDateClass = "";
+
+          if (daysDiff < 0) {
+            endDateClass = "bg-red-100 text-red-800 font-medium";
+          } else if (daysDiff <= 10) {
+            endDateClass = "bg-red-100 text-red-800 font-medium";
+          }
+
+          const row = document.createElement("tr");
+          row.className = "hover:bg-gray-50 transition-all";
+          row.innerHTML = `
+                    <td class="px-6 py-4 text-base text-gray-900">${member.name}</td>
+                    <td class="px-6 py-4 text-base text-gray-900">${member.cardType}</td>
+                    <td class="px-6 py-4 text-base text-gray-900">${member.age || "-"}</td>
+                    <td class="px-6 py-4 text-base text-gray-900">${member.startDate}</td>
+                    <td class="px-6 py-4 text-base ${endDateClass}">${member.endDate}</td>
+                    <td class="px-6 py-4 text-base text-gray-900">${member.totalClasses}</td>
+                    <td class="px-6 py-4 text-base text-gray-900">${member.remainingClasses}</td>
+                    <td class="px-6 py-4 text-base text-gray-900">${member.remark || "-"}</td>
+                    <td class="px-6 py-4 text-base">
+                        <button class="text-primary hover:text-blue-700 mr-4 text-lg" onclick="editMember(${originalIndex})" title="编辑会员"><i class="fa fa-pencil"></i></button>
+                        <button class="text-danger hover:text-red-700 mr-4 text-lg" onclick="renewMember(${originalIndex})" title="会员续费"><i class="fa fa-refresh"></i></button>
+                        <button class="text-danger hover:text-red-700 text-lg" onclick="deleteMember(${originalIndex})" title="删除当前会员"><i class="fa fa-trash"></i></button>
+                    </td>
+                `;
+          tableBody.appendChild(row);
+        });
+
+        // 渲染分页控件
+        renderPagination(totalPages);
+
+        // 检查到期提醒
+        checkExpiryAlerts();
+      }
+
+      // 渲染分页控件
+      function renderPagination(totalPages) {
+        const membersPage = document.getElementById("members-page");
+        let paginationContainer = document.getElementById("pagination-container");
+        
+        // 如果分页容器不存在，创建它
+        if (!paginationContainer) {
+          paginationContainer = document.createElement("div");
+          paginationContainer.id = "pagination-container";
+          paginationContainer.className = "mt-6 flex justify-center";
+          membersPage.appendChild(paginationContainer);
+        }
+        
+        // 清空分页容器
+        paginationContainer.innerHTML = "";
+        
+        // 创建分页控件
+        const pagination = document.createElement("div");
+        pagination.className = "inline-flex rounded-md shadow";
+        
+        // 上一页按钮
+        const prevButton = document.createElement("button");
+        prevButton.className = "px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-l-md";
+        prevButton.innerHTML = '<i class="fa fa-chevron-left"></i>';
+        prevButton.disabled = currentPage === 1;
+        prevButton.onclick = function() {
+          if (currentPage > 1) {
+            currentPage--;
+            renderMembersTable();
+          }
+        };
+        pagination.appendChild(prevButton);
+        
+        // 页码按钮
+        for (let i = 1; i <= totalPages; i++) {
+          const pageButton = document.createElement("button");
+          pageButton.className = `px-4 py-2 border-t border-b border-gray-300 bg-white text-sm font-medium ${currentPage === i ? 'text-primary bg-blue-50' : 'text-gray-700 hover:bg-gray-50'}`;
+          pageButton.textContent = i;
+          pageButton.onclick = function() {
+            currentPage = i;
+            renderMembersTable();
+          };
+          pagination.appendChild(pageButton);
+        }
+        
+        // 下一页按钮
+        const nextButton = document.createElement("button");
+        nextButton.className = "px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-r-md";
+        nextButton.innerHTML = '<i class="fa fa-chevron-right"></i>';
+        nextButton.disabled = currentPage === totalPages;
+        nextButton.onclick = function() {
+          if (currentPage < totalPages) {
+            currentPage++;
+            renderMembersTable();
+          }
+        };
+        pagination.appendChild(nextButton);
+        
+        // 添加到容器
+        paginationContainer.appendChild(pagination);
+      }
+
+      // 搜索会员
+      function searchMembers() {
+        const searchTerm = document
+          .getElementById("search-input")
+          .value.toLowerCase();
+        if (!searchTerm) {
+          currentPage = 1; // 重置页码
+          renderMembersTable();
+          document.getElementById("exit-search-btn").classList.add("hidden");
+          return;
+        }
+
+        document.getElementById("exit-search-btn").classList.remove("hidden");
+
+        const tableBody = document.getElementById("members-table-body");
+        tableBody.innerHTML = "";
+
+        const filteredMembers = members.filter((member) =>
+          member.name.toLowerCase().includes(searchTerm),
+        );
+
+        // 计算搜索结果的分页数据
+        const totalItems = filteredMembers.length;
+        const totalPages = Math.ceil(totalItems / pageSize);
+        const startIndex = (currentPage - 1) * pageSize;
+        const endIndex = startIndex + pageSize;
+        const paginatedMembers = filteredMembers.slice(startIndex, endIndex);
+
+        paginatedMembers.forEach((member, index) => {
+          const originalIndex = members.indexOf(member);
+          const daysDiff = getDaysDiff(member.endDate);
+          let endDateClass = "";
+
+          if (daysDiff < 0) {
+            endDateClass = "bg-red-100 text-red-800 font-medium";
+          } else if (daysDiff <= 10) {
+            endDateClass = "bg-red-100 text-red-800 font-medium";
+          }
+
+          const row = document.createElement("tr");
+          row.className = "hover:bg-gray-50 transition-all";
+          row.dataset.index = originalIndex;
+          row.innerHTML = `
+                    <td class="px-6 py-4 text-base text-gray-900">${member.name}</td>
+                    <td class="px-6 py-4 text-base text-gray-900">${member.cardType}</td>
+                    <td class="px-6 py-4 text-base text-gray-900">${member.age || "-"}</td>
+                    <td class="px-6 py-4 text-base text-gray-900">${member.startDate}</td>
+                    <td class="px-6 py-4 text-base ${endDateClass}">${member.endDate}</td>
+                    <td class="px-6 py-4 text-base text-gray-900">${member.totalClasses}</td>
+                    <td class="px-6 py-4 text-base text-gray-900">${member.remainingClasses}</td>
+                    <td class="px-6 py-4 text-base text-gray-900">${member.remark || "-"}</td>
+                    <td class="px-6 py-4 text-base">
+                        <button class="text-primary hover:text-blue-700 mr-4 text-lg" onclick="editMember(${originalIndex})" title="编辑会员"><i class="fa fa-pencil"></i></button>
+                        <button class="text-danger hover:text-red-700 mr-4 text-lg" onclick="renewMember(${originalIndex})" title="会员续费"><i class="fa fa-refresh"></i></button>
+                        <button class="text-danger hover:text-red-700 text-lg" onclick="deleteMember(${originalIndex})" title="删除当前会员"><i class="fa fa-trash"></i></button>
+                    </td>
+                `;
+          tableBody.appendChild(row);
+        });
+
+        // 渲染搜索结果的分页控件
+        renderSearchPagination(totalPages, searchTerm);
+      }
+
+      // 渲染搜索结果的分页控件
+      function renderSearchPagination(totalPages, searchTerm) {
+        const membersPage = document.getElementById("members-page");
+        let paginationContainer = document.getElementById("pagination-container");
+        
+        // 如果分页容器不存在，创建它
+        if (!paginationContainer) {
+          paginationContainer = document.createElement("div");
+          paginationContainer.id = "pagination-container";
+          paginationContainer.className = "mt-6 flex justify-center";
+          membersPage.appendChild(paginationContainer);
+        }
+        
+        // 清空分页容器
+        paginationContainer.innerHTML = "";
+        
+        // 创建分页控件
+        const pagination = document.createElement("div");
+        pagination.className = "inline-flex rounded-md shadow";
+        
+        // 上一页按钮
+        const prevButton = document.createElement("button");
+        prevButton.className = "px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-l-md";
+        prevButton.innerHTML = '<i class="fa fa-chevron-left"></i>';
+        prevButton.disabled = currentPage === 1;
+        prevButton.onclick = function() {
+          if (currentPage > 1) {
+            currentPage--;
+            searchMembers();
+          }
+        };
+        pagination.appendChild(prevButton);
+        
+        // 页码按钮
+        for (let i = 1; i <= totalPages; i++) {
+          const pageButton = document.createElement("button");
+          pageButton.className = `px-4 py-2 border-t border-b border-gray-300 bg-white text-sm font-medium ${currentPage === i ? 'text-primary bg-blue-50' : 'text-gray-700 hover:bg-gray-50'}`;
+          pageButton.textContent = i;
+          pageButton.onclick = function() {
+            currentPage = i;
+            searchMembers();
+          };
+          pagination.appendChild(pageButton);
+        }
+        
+        // 下一页按钮
+        const nextButton = document.createElement("button");
+        nextButton.className = "px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-r-md";
+        nextButton.innerHTML = '<i class="fa fa-chevron-right"></i>';
+        nextButton.disabled = currentPage === totalPages;
+        nextButton.onclick = function() {
+          if (currentPage < totalPages) {
+            currentPage++;
+            searchMembers();
+          }
+        };
+        pagination.appendChild(nextButton);
+        
+        // 添加到容器
+        paginationContainer.appendChild(pagination);
+      }
+
+      // 搜索排课
+      function searchSchedule() {
+        const searchTerm = document
+          .getElementById("schedule-search-input")
+          .value.toLowerCase();
+        if (!searchTerm) {
+          renderScheduleTable();
+          document
+            .getElementById("schedule-exit-search-btn")
+            .classList.add("hidden");
+          return;
+        }
+
+        document
+          .getElementById("schedule-exit-search-btn")
+          .classList.remove("hidden");
+
+        const tableBody = document.getElementById("schedule-table-body");
+        tableBody.innerHTML = "";
+
+        schedule.forEach((item, index) => {
+          // 检查是否包含搜索词
+          const days = [
+            "monday",
+            "tuesday",
+            "wednesday",
+            "thursday",
+            "friday",
+            "saturday",
+            "sunday",
+          ];
+          const hasMatch = days.some((day) => {
+            const classInfo = item[day];
+            return classInfo && classInfo.toLowerCase().includes(searchTerm);
+          });
+
+          if (hasMatch) {
+            const row = document.createElement("tr");
+            row.className = "hover:bg-gray-50 transition-all";
+
+            // 处理每个星期的课程和学生
+            const dayCells = days
+              .map((day) => {
+                const classInfo = item[day];
+                if (!classInfo)
+                  return '<td class="px-4 py-3 text-sm text-gray-900">-</td>';
+
+                // 提取班级名称（去除时间等其他信息）
+                const className = classInfo.replace(/\s+\d+:\d+/, "");
+                const students = getStudentsByClass(className);
+
+                // 生成学生列表HTML
+                const studentsHtml =
+                  students.length > 0
+                    ? `<div class="text-xs text-gray-500 mt-1">${students.join("、")}</div>`
+                    : "";
+
+                return `<td class="px-4 py-3 text-sm text-gray-900">${classInfo}${studentsHtml}<button class="text-primary hover:text-blue-700 text-xs mt-1 inline-block" onclick="editClassStudents('${className}')">编辑学生</button></td>`;
+              })
+              .join("");
+
+            row.innerHTML = `
+                        <td class="px-4 py-3 text-sm font-medium text-gray-900">${item.time}</td>
+                        ${dayCells}
+                        <td class="px-4 py-3 text-sm">
+                            <button class="text-primary hover:text-blue-700 mr-3" onclick="editSchedule(${index})" title="编辑排课"><i class="fa fa-pencil"></i></button>
+                            <button class="text-danger hover:text-red-700" onclick="deleteSchedule(${index})" title="删除排课"><i class="fa fa-trash"></i></button>
+                        </td>
+                    `;
+            tableBody.appendChild(row);
+          }
+        });
+      }
+
+      // 搜索不确定情况
+      function searchUncertain() {
+        const searchTerm = document
+          .getElementById("uncertain-search-input")
+          .value.toLowerCase();
+        if (!searchTerm) {
+          renderUncertainTable();
+          document
+            .getElementById("uncertain-exit-search-btn")
+            .classList.add("hidden");
+          return;
+        }
+
+        document
+          .getElementById("uncertain-exit-search-btn")
+          .classList.remove("hidden");
+
+        const tableBody = document.getElementById("uncertain-table-body");
+        tableBody.innerHTML = "";
+
+        uncertain.forEach((item, index) => {
+          // 检查是否包含搜索词
+          const hasMatch =
+            (item.name && item.name.toLowerCase().includes(searchTerm)) ||
+            (item.course && item.course.toLowerCase().includes(searchTerm)) ||
+            (item.remark && item.remark.toLowerCase().includes(searchTerm));
+
+          if (hasMatch) {
+            const row = document.createElement("tr");
+            row.className = "hover:bg-gray-50 transition-all";
+            row.innerHTML = `
+                        <td class="px-4 py-3 text-sm text-gray-900">${item.date}</td>
+                        <td class="px-4 py-3 text-sm text-gray-900">${item.time}</td>
+                        <td class="px-4 py-3 text-sm text-gray-900">${item.name || "-"}</td>
+                        <td class="px-4 py-3 text-sm text-gray-900">${item.course}</td>
+                        <td class="px-4 py-3 text-sm text-gray-900">${item.remark || "-"}</td>
+                        <td class="px-4 py-3 text-sm">
+                            <button class="text-primary hover:text-blue-700 mr-3" onclick="editUncertain(${index})" title="编辑不确定情况"><i class="fa fa-pencil"></i></button>
+                            <button class="text-danger hover:text-red-700" onclick="deleteUncertain(${index})" title="删除不确定情况"><i class="fa fa-trash"></i></button>
+                        </td>
+                    `;
+            tableBody.appendChild(row);
+          }
+        });
+      }
+
+      // 搜索不定时上课
+      function searchIrregular() {
+        const searchTerm = document
+          .getElementById("irregular-search-input")
+          .value.toLowerCase();
+        if (!searchTerm) {
+          renderIrregularTable();
+          document
+            .getElementById("irregular-exit-search-btn")
+            .classList.add("hidden");
+          return;
+        }
+
+        document
+          .getElementById("irregular-exit-search-btn")
+          .classList.remove("hidden");
+
+        const tableBody = document.getElementById("irregular-table-body");
+        tableBody.innerHTML = "";
+
+        irregular.forEach((item, index) => {
+          // 检查是否包含搜索词
+          const hasMatch =
+            (item.name && item.name.toLowerCase().includes(searchTerm)) ||
+            (item.course && item.course.toLowerCase().includes(searchTerm)) ||
+            (item.remark && item.remark.toLowerCase().includes(searchTerm));
+
+          if (hasMatch) {
+            const row = document.createElement("tr");
+            row.className = "hover:bg-gray-50 transition-all";
+            row.innerHTML = `
+                        <td class="px-4 py-3 text-sm text-gray-900">${item.date}</td>
+                        <td class="px-4 py-3 text-sm text-gray-900">${item.time}</td>
+                        <td class="px-4 py-3 text-sm text-gray-900">${item.name || "-"}</td>
+                        <td class="px-4 py-3 text-sm text-gray-900">${item.course}</td>
+                        <td class="px-4 py-3 text-sm text-gray-900">${item.remark || "-"}</td>
+                        <td class="px-4 py-3 text-sm">
+                            <button class="text-primary hover:text-blue-700 mr-3" onclick="editIrregular(${index})" title="编辑不定时上课"><i class="fa fa-pencil"></i></button>
+                            <button class="text-danger hover:text-red-700" onclick="deleteIrregular(${index})" title="删除不定时上课"><i class="fa fa-trash"></i></button>
+                        </td>
+                    `;
+            tableBody.appendChild(row);
+          }
+        });
+      }
+
+      // 退出搜索
+      function exitSearch(type) {
+        if (type === "members") {
+          document.getElementById("search-input").value = "";
+          renderMembersTable(); // 强制触发原始表格渲染
+          document.getElementById("exit-search-btn").classList.add("hidden");
+        } else if (type === "schedule") {
+          document.getElementById("schedule-search-input").value = "";
+          renderScheduleTable(); // 强制触发原始表格渲染
+          document
+            .getElementById("schedule-exit-search-btn")
+            .classList.add("hidden");
+        } else if (type === "uncertain") {
+          document.getElementById("uncertain-search-input").value = "";
+          renderUncertainTable(); // 强制触发原始表格渲染
+          document
+            .getElementById("uncertain-exit-search-btn")
+            .classList.add("hidden");
+        } else if (type === "irregular") {
+          document.getElementById("irregular-search-input").value = "";
+          renderIrregularTable(); // 强制触发原始表格渲染
+          document
+            .getElementById("irregular-exit-search-btn")
+            .classList.add("hidden");
+        }
+      }
+
+      // 从localStorage加载班级学生数据
+      function loadClassStudents() { const saved = localStorage.getItem('classStudents'); return saved ? JSON.parse(saved) : {}; }
+
+      // 保存班级学生数据
+      function saveClassStudents(classStudents) {
+        // 班级学生数据已包含在全局数据中，通过saveData()统一保存
+        if (!saveData()) {
+          alert("数据保存失败，请检查数据格式！");
+        }
+      }
+
+      // 加载活动数据
+      function loadActivities() {
+        return ["199活动会员", "299活动会员", "399活动会员", "499活动会员"];
+      }
+
+      function saveActivities(nextActivities) {
+        activities = nextActivities;
+        saveData();
+      }
+
+      // 初始化活动数据（覆盖默认空数组）
+      activities = loadActivities();
+
+      // 渲染活动列表
+      function renderActivityList() {
+        const activityList = document.getElementById("activity-list");
+        activityList.innerHTML = "";
+
+        activities.forEach((activity, index) => {
+          const activityItem = document.createElement("div");
+          activityItem.className =
+            "flex items-center justify-between p-2 border border-gray-200 rounded-md";
+          activityItem.innerHTML = `
+                    <div class="flex-1">
+                        <input type="text" value="${activity}" class="w-full px-3 py-1 border border-gray-300 rounded-md" onblur="updateActivity(${index}, this.value)">
+                        <button class="text-primary hover:text-blue-700 text-sm mt-1" onclick="goToActivityPage('${activity}')">查看活动会员</button>
+                    </div>
+                    <button class="text-danger hover:text-red-700 ml-2" onclick="deleteActivity(${index})"><i class="fa fa-trash"></i></button>
+                `;
+          activityList.appendChild(activityItem);
+        });
+      }
+
+      // 更新活动名称
+      function updateActivity(index, newName) {
+        if (newName.trim()) {
+          activities[index] = newName.trim();
+          saveActivities(activities);
+          updateCardTypeOptions();
+        }
+      }
+
+      // 删除活动
+      function deleteActivity(index) {
+        activities.splice(index, 1);
+        saveActivities(activities);
+        renderActivityList();
+        updateCardTypeOptions();
+      }
+
+      // 添加新活动
+      function addActivity() {
+        const newActivityName =
+          document.getElementById("new-activity-name").value;
+        if (newActivityName.trim()) {
+          activities.push(newActivityName.trim());
+          saveActivities(activities);
+          renderActivityList();
+          updateCardTypeOptions();
+          document.getElementById("new-activity-name").value = "";
+        }
+      }
+
+      // 更新卡型选择选项
+      function updateCardTypeOptions() {
+        const cardTypeSelect = document.querySelector(
+          'select[name="cardType"]',
+        );
+        if (cardTypeSelect) {
+          // 保存当前选中的值
+          const currentValue = cardTypeSelect.value;
+
+          // 移除现有的活动选项
+          const options = cardTypeSelect.options;
+          for (let i = options.length - 1; i >= 0; i--) {
+            if (activities.includes(options[i].value)) {
+              options.remove(i);
+            }
+          }
+
+          // 添加新的活动选项
+          activities.forEach((activity) => {
+            const option = document.createElement("option");
+            option.value = activity;
+            option.textContent = activity;
+            cardTypeSelect.appendChild(option);
+          });
+
+          // 恢复当前选中的值
+          cardTypeSelect.value = currentValue;
+        }
+      }
+
+      // 根据班级名称获取学生列表
+      function getStudentsByClass(className) {
+        // 简单的班级匹配逻辑，实际应用中可能需要更复杂的匹配规则
+        return classStudents[className] || [];
+      }
+
+      // 渲染排课表格
+      function renderScheduleTable() {
+        const tableBody = document.getElementById("schedule-table-body");
+        tableBody.innerHTML = "";
+
+        schedule.forEach((item, index) => {
+          const row = document.createElement("tr");
+          row.className = "hover:bg-gray-50 transition-all";
+
+          // 处理每个星期的课程和学生
+          const days = [
+            "monday",
+            "tuesday",
+            "wednesday",
+            "thursday",
+            "friday",
+            "saturday",
+            "sunday",
+          ];
+          const dayCells = days
+            .map((day) => {
+              const classInfo = item[day];
+              if (!classInfo)
+                return '<td class="px-4 py-3 text-sm text-gray-900">-</td>';
+
+              // 提取班级名称（去除时间等其他信息）
+              const className = classInfo.replace(/\s+\d+:\d+/, "");
+              const students = getStudentsByClass(className);
+
+              // 生成学生列表HTML
+              const studentsHtml =
+                students.length > 0
+                  ? `<div class="text-xs text-gray-500 mt-1">${students.join("、")}</div>`
+                  : "";
+
+              return `<td class="px-4 py-3 text-sm text-gray-900">${classInfo}${studentsHtml}<button class="text-primary hover:text-blue-700 text-xs mt-1 inline-block" onclick="editClassStudents('${className}')">编辑学生</button></td>`;
+            })
+            .join("");
+
+          row.innerHTML = `
+                    <td class="px-4 py-3 text-sm font-medium text-gray-900">${item.time}</td>
+                    ${dayCells}
+                    <td class="px-4 py-3 text-sm">
+                        <button class="text-primary hover:text-blue-700 mr-3" onclick="editSchedule(${index})"><i class="fa fa-pencil"></i></button>
+                        <button class="text-danger hover:text-red-700" onclick="deleteSchedule(${index})"><i class="fa fa-trash"></i></button>
+                    </td>
+                `;
+          tableBody.appendChild(row);
+        });
+      }
+
+      // 渲染不确定情况列表
+      function renderUncertainTable() {
+        const tableBody = document.getElementById("uncertain-table-body");
+        tableBody.innerHTML = "";
+
+        uncertain.forEach((item, index) => {
+          const row = document.createElement("tr");
+          row.className = "hover:bg-gray-50 transition-all";
+          row.innerHTML = `
+                    <td class="px-4 py-3 text-sm text-gray-900">${item.date}</td>
+                    <td class="px-4 py-3 text-sm text-gray-900">${item.time}</td>
+                    <td class="px-4 py-3 text-sm text-gray-900">${item.name || "-"}</td>
+                    <td class="px-4 py-3 text-sm text-gray-900">${item.course}</td>
+                    <td class="px-4 py-3 text-sm text-gray-900">${item.remark || "-"}</td>
+                    <td class="px-4 py-3 text-sm">
+                        <button class="text-primary hover:text-blue-700 mr-3" onclick="editUncertain(${index})"><i class="fa fa-pencil"></i></button>
+                        <button class="text-danger hover:text-red-700" onclick="deleteUncertain(${index})"><i class="fa fa-trash"></i></button>
+                    </td>
+                `;
+          tableBody.appendChild(row);
+        });
+      }
+
+      // 渲染不定时上课列表
+      function renderIrregularTable() {
+        const tableBody = document.getElementById("irregular-table-body");
+        tableBody.innerHTML = "";
+
+        irregular.forEach((item, index) => {
+          const row = document.createElement("tr");
+          row.className = "hover:bg-gray-50 transition-all";
+          row.innerHTML = `
+                    <td class="px-4 py-3 text-sm text-gray-900">${item.date}</td>
+                    <td class="px-4 py-3 text-sm text-gray-900">${item.time}</td>
+                    <td class="px-4 py-3 text-sm text-gray-900">${item.name || "-"}</td>
+                    <td class="px-4 py-3 text-sm text-gray-900">${item.course}</td>
+                    <td class="px-4 py-3 text-sm text-gray-900">${item.remark || "-"}</td>
+                    <td class="px-4 py-3 text-sm">
+                        <button class="text-primary hover:text-blue-700 mr-3" onclick="editIrregular(${index})"><i class="fa fa-pencil"></i></button>
+                        <button class="text-danger hover:text-red-700" onclick="deleteIrregular(${index})"><i class="fa fa-trash"></i></button>
+                    </td>
+                `;
+          tableBody.appendChild(row);
+        });
+      }
+
+      // 数据清洗函数：将NaN/Infinity/Invalid Date替换为可读字符串
+      function cleanData(data) {
+        return data.map((item) => {
+          const cleanedItem = {};
+          for (const key in item) {
+            const value = item[key];
+            if (value === null || value === undefined) {
+              cleanedItem[key] = "";
+            } else if (typeof value === "number" && isNaN(value)) {
+              cleanedItem[key] = "无数据";
+            } else if (typeof value === "number" && !isFinite(value)) {
+              cleanedItem[key] = "无数据";
+            } else if (value instanceof Date && isNaN(value.getTime())) {
+              cleanedItem[key] = "无数据";
+            } else {
+              cleanedItem[key] = value;
+            }
+          }
+          return cleanedItem;
+        });
+      }
+
+      // 导出会员数据到Excel
+      function exportMembersToExcel() {
+        const cleanedMembers = cleanData(members);
+        const ws = XLSX.utils.json_to_sheet(cleanedMembers);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "会员表");
+        XLSX.writeFile(wb, "会员表.xlsx");
+      }
+
+      // 导出排课数据到Excel
+      function exportScheduleToExcel() {
+        const cleanedSchedule = cleanData(schedule);
+        const ws = XLSX.utils.json_to_sheet(cleanedSchedule);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "排课表");
+        XLSX.writeFile(wb, "排课表.xlsx");
+      }
+
+      // 导入会员数据
+      function importMembersFromExcel(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: "array" });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          const importedData = XLSX.utils.sheet_to_json(worksheet);
+
+          // 验证数据格式
+          if (importedData.length > 0) {
+            const keys = Object.keys(importedData[0]);
+            const requiredKeys = [
+              "name",
+              "cardType",
+              "startDate",
+              "endDate",
+              "totalClasses",
+              "remainingClasses",
+            ];
+            const hasRequiredKeys = requiredKeys.every((key) =>
+              keys.includes(key),
+            );
+
+            if (hasRequiredKeys) {
+              // 导入预处理：将undefined/null值替换为空字符串，过滤无效行
+              const processedData = importedData
+                .map((item) => {
+                  const processedItem = {
+                    name: item.name || "",
+                    cardType: item.cardType || "",
+                    age: item.age || "",
+                    startDate: item.startDate || "",
+                    endDate: item.endDate || "",
+                    totalClasses: item.totalClasses || 0,
+                    remainingClasses: item.remainingClasses || 0,
+                    remark: item.remark || "",
+                  };
+                  // 处理其他可能存在的字段
+                  for (const key in item) {
+                    if (!processedItem.hasOwnProperty(key)) {
+                      processedItem[key] = item[key] === undefined || item[key] === null ? "" : item[key];
+                    }
+                  }
+                  return processedItem;
+                })
+                .filter((item) => item.name); // 过滤掉姓名为空的无效行
+
+              members = processedData;
+              if (!saveData()) {
+                alert("数据保存失败，请检查数据格式！");
+              }
+              renderMembersTable();
+              alert("会员数据导入成功！");
+            } else {
+              alert("导入的Excel文件格式不正确，请确保包含所有必要字段。");
+            }
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      }
+
+      // 导入排课数据
+      function importScheduleFromExcel(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        // 检查文件后缀是否为xlsx
+        if (!file.name.endsWith(".xlsx")) {
+          alert("请选择xlsx后缀的Excel文件！");
+          return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: "array" });
+          let importCount = 0;
+
+          // 遍历所有工作表
+          workbook.SheetNames.forEach((sheetName) => {
+            const worksheet = workbook.Sheets[sheetName];
+            const importedData = XLSX.utils.sheet_to_json(worksheet);
+
+            if (importedData.length > 0) {
+              const keys = Object.keys(importedData[0]);
+
+              // 根据工作表名称和字段智能识别数据类型
+              if (
+                sheetName.includes("排课") ||
+                (keys.includes("time") && keys.includes("monday"))
+              ) {
+                // 导入排课表数据
+                // 导入预处理：将undefined/null值替换为空字符串，过滤无效行
+                const processedSchedule = importedData.map((item) => {
+                  const processedItem = {};
+                  for (const key in item) {
+                    if (item[key] === undefined || item[key] === null) {
+                      processedItem[key] = "";
+                    } else {
+                      processedItem[key] = item[key];
+                    }
+                  }
+                  return processedItem;
+                });
+                schedule = processedSchedule;
+                if (!saveData()) {
+                  alert("数据保存失败，请检查数据格式！");
+                }
+                renderScheduleTable();
+                importCount++;
+              } else if (
+                sheetName.includes("不确定") ||
+                (keys.includes("date") && keys.includes("course"))
+              ) {
+                // 导入不确定情况数据
+                // 导入预处理：将undefined/null值替换为空字符串，过滤无效行
+                const processedUncertain = importedData
+                  .map((item) => {
+                    const processedItem = {};
+                    for (const key in item) {
+                      if (item[key] === undefined || item[key] === null) {
+                        processedItem[key] = "";
+                      } else {
+                        processedItem[key] = item[key];
+                      }
+                    }
+                    return processedItem;
+                  })
+                  .filter((item) => item.date); // 过滤掉日期为空的无效行
+                uncertain = processedUncertain;
+                if (!saveData()) {
+                  alert("数据保存失败，请检查数据格式！");
+                }
+                renderUncertainTable();
+                importCount++;
+              } else if (
+                sheetName.includes("不定时") ||
+                (keys.includes("date") &&
+                  keys.includes("time") &&
+                  keys.includes("course"))
+              ) {
+                // 导入不定时上课数据
+                // 导入预处理：将undefined/null值替换为空字符串，过滤无效行
+                const processedIrregular = importedData
+                  .map((item) => {
+                    const processedItem = {};
+                    for (const key in item) {
+                      if (item[key] === undefined || item[key] === null) {
+                        processedItem[key] = "";
+                      } else {
+                        processedItem[key] = item[key];
+                      }
+                    }
+                    return processedItem;
+                  })
+                  .filter((item) => item.date); // 过滤掉日期为空的无效行
+                irregular = processedIrregular;
+                if (!saveData()) {
+                  alert("数据保存失败，请检查数据格式！");
+                }
+                renderIrregularTable();
+                importCount++;
+              }
+            }
+          });
+
+          if (importCount > 0) {
+            alert(`成功导入${importCount}个工作表的数据！`);
+          } else {
+            alert("未找到有效的数据工作表，请检查Excel文件格式。");
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      }
+
+      // 添加会员
+      function addMember(member, activityName = null) {
+        // 确保会员对象包含所有必要字段
+        const completeMember = {
+          name: member.name,
+          cardType: member.cardType,
+          age: member.age || "",
+          startDate: member.startDate,
+          endDate: member.endDate,
+          totalClasses: member.totalClasses,
+          remainingClasses: member.remainingClasses,
+          remark: member.remark || "",
+        };
+        
+        if (activityName) {
+          // 添加到活动会员
+          if (!activityMembers[activityName]) {
+            activityMembers[activityName] = [];
+          }
+          activityMembers[activityName].push(completeMember);
+          saveData();
+          goToActivityPage(activityName);
+        } else {
+          // 添加到普通会员
+          members.push(completeMember);
+          saveData();
+          currentPage = 1; // 重置页码
+          renderMembersTable();
+        }
+      }
+
+      // 编辑会员
+      function editMember(index) {
+        const member = members[index];
+        document.querySelector('input[name="name"]').value = member.name;
+        document.querySelector('select[name="cardType"]').value =
+          member.cardType;
+        document.querySelector('input[name="age"]').value = member.age || "";
+        document.querySelector('input[name="startDate"]').value =
+          member.startDate;
+        document.querySelector('input[name="endDate"]').value = member.endDate;
+        document.querySelector('input[name="totalClasses"]').value =
+          member.totalClasses;
+        document.querySelector('input[name="remainingClasses"]').value =
+          member.remainingClasses;
+        document.querySelector('textarea[name="remark"]').value =
+          member.remark || "";
+
+        // 显示模态框
+        document.getElementById("add-member-modal").classList.remove("hidden");
+
+        // 修改表单提交事件
+        const form = document.getElementById("add-member-form");
+        form.onsubmit = function (e) {
+          e.preventDefault();
+          const updatedMember = {
+            name: form.elements.name.value,
+            cardType: form.elements.cardType.value,
+            age: form.elements.age.value,
+            startDate: form.elements.startDate.value,
+            endDate: form.elements.endDate.value,
+            totalClasses: parseInt(form.elements.totalClasses.value),
+            remainingClasses: parseInt(form.elements.remainingClasses.value),
+            remark: form.elements.remark.value,
+          };
+          members[index] = updatedMember;
+          saveData();
+          renderMembersTable();
+          document.getElementById("add-member-modal").classList.add("hidden");
+          form.reset();
+          // 恢复表单提交事件
+          form.onsubmit = addMemberFormSubmit;
+        };
+      }
+
+      // 删除会员
+      function deleteMember(index) {
+        if (confirm("确定要删除这个会员吗？")) {
+          members.splice(index, 1);
+          saveData();
+          currentPage = 1; // 重置页码
+          renderMembersTable();
+        }
+      }
+
+      // 编辑活动会员
+      function editActivityMember(activityName, index) {
+        const member = activityMembers[activityName][index];
+        document.querySelector('input[name="name"]').value = member.name;
+        document.querySelector('select[name="cardType"]').value =
+          member.cardType;
+        document.querySelector('input[name="age"]').value = member.age || "";
+        document.querySelector('input[name="startDate"]').value =
+          member.startDate;
+        document.querySelector('input[name="endDate"]').value = member.endDate;
+        document.querySelector('input[name="totalClasses"]').value =
+          member.totalClasses;
+        document.querySelector('input[name="remainingClasses"]').value =
+          member.remainingClasses;
+        document.querySelector('textarea[name="remark"]').value =
+          member.remark || "";
+
+        // 显示模态框
+        document.getElementById("add-member-modal").classList.remove("hidden");
+        document.querySelector("#add-member-modal h3").textContent =
+          "编辑活动会员";
+
+        // 修改表单提交事件
+        const form = document.getElementById("add-member-form");
+        form.onsubmit = function (e) {
+          e.preventDefault();
+          const updatedMember = {
+            name: form.elements.name.value,
+            cardType: form.elements.cardType.value,
+            age: form.elements.age.value,
+            startDate: form.elements.startDate.value,
+            endDate: form.elements.endDate.value,
+            totalClasses: parseInt(form.elements.totalClasses.value),
+            remainingClasses: parseInt(form.elements.remainingClasses.value),
+            remark: form.elements.remark.value,
+          };
+          activityMembers[activityName][index] = updatedMember;
+          saveData();
+          goToActivityPage(activityName);
+          document.getElementById("add-member-modal").classList.add("hidden");
+          form.reset();
+          // 恢复表单提交事件
+          form.onsubmit = addMemberFormSubmit;
+          document.querySelector("#add-member-modal h3").textContent =
+            "添加会员";
+        };
+      }
+
+      // 活动会员续费
+      function renewActivityMember(activityName, index) {
+        const member = activityMembers[activityName][index];
+        document.querySelector('#renew-member-form input[name="name"]').value =
+          member.name;
+        document.querySelector(
+          '#renew-member-form input[name="oldEndDate"]',
+        ).value = member.endDate;
+
+        // 显示模态框
+        document
+          .getElementById("renew-member-modal")
+          .classList.remove("hidden");
+
+        // 修改表单提交事件
+        const form = document.getElementById("renew-member-form");
+        form.onsubmit = function (e) {
+          e.preventDefault();
+          const newEndDate = form.elements.newEndDate.value;
+          const addClasses = parseInt(form.elements.addClasses.value);
+          const remark = form.elements.remark.value;
+
+          // 更新会员信息
+          member.endDate = newEndDate;
+          member.totalClasses += addClasses;
+          member.remainingClasses += addClasses;
+          if (remark) {
+            member.remark = member.remark
+              ? member.remark + " | " + remark
+              : remark;
+          }
+
+          saveData();
+          goToActivityPage(activityName);
+          document.getElementById("renew-member-modal").classList.add("hidden");
+          form.reset();
+        };
+      }
+
+      // 删除活动会员
+      function deleteActivityMember(activityName, index) {
+        if (confirm("确定要删除这个活动会员吗？")) {
+          activityMembers[activityName].splice(index, 1);
+          saveData();
+          goToActivityPage(activityName);
+        }
+      }
+
+      // 会员续费
+      function renewMember(index) {
+        const member = members[index];
+        document.querySelector('#renew-member-form input[name="name"]').value =
+          member.name;
+        document.querySelector(
+          '#renew-member-form input[name="oldEndDate"]',
+        ).value = member.endDate;
+
+        // 显示模态框
+        document
+          .getElementById("renew-member-modal")
+          .classList.remove("hidden");
+
+        // 修改表单提交事件
+        const form = document.getElementById("renew-member-form");
+        form.onsubmit = function (e) {
+          e.preventDefault();
+          const newEndDate = form.elements.newEndDate.value;
+          const addClasses = parseInt(form.elements.addClasses.value);
+          const remark = form.elements.remark.value;
+
+          // 更新会员信息
+          member.endDate = newEndDate;
+          member.totalClasses += addClasses;
+          member.remainingClasses += addClasses;
+          if (remark) {
+            member.remark = member.remark
+              ? member.remark + " | " + remark
+              : remark;
+          }
+
+          saveData();
+          renderMembersTable();
+          document.getElementById("renew-member-modal").classList.add("hidden");
+          form.reset();
+        };
+      }
+
+      // 编辑班级学生
+      function editClassStudents(className) {
+        document.getElementById("current-class-name").value = className;
+        document.getElementById("class-name-input").value = className;
+
+        // 获取当前班级的学生列表
+        const students = getStudentsByClass(className);
+        document.getElementById("students-input").value = students.join("\n");
+
+        // 显示模态框
+        document
+          .getElementById("edit-class-students-modal")
+          .classList.remove("hidden");
+
+        // 修改表单提交事件
+        const form = document.getElementById("edit-class-students-form");
+        form.onsubmit = function (e) {
+          e.preventDefault();
+          const className = document.getElementById("current-class-name").value;
+          const studentsText = document.getElementById("students-input").value;
+
+          // 处理学生列表，去除空行
+          const students = studentsText
+            .split("\n")
+            .map((line) => line.trim())
+            .filter((line) => line !== "");
+
+          // 更新班级学生数据
+          classStudents[className] = students;
+          saveClassStudents(classStudents);
+
+          // 重新渲染排课表格
+          renderScheduleTable();
+          document
+            .getElementById("edit-class-students-modal")
+            .classList.add("hidden");
+          form.reset();
+        };
+      }
+
+      // 表单提交事件
+      function addMemberFormSubmit(e) {
+        e.preventDefault();
+        const form = e.target;
+        const newMember = {
+          name: form.elements.name.value,
+          cardType: form.elements.cardType.value,
+          age: form.elements.age.value,
+          startDate: form.elements.startDate.value,
+          endDate: form.elements.endDate.value,
+          totalClasses: parseInt(form.elements.totalClasses.value),
+          remainingClasses: parseInt(form.elements.remainingClasses.value),
+          remark: form.elements.remark.value,
+        };
+
+        // 检查当前是否在活动会员页面
+        const pageTitle =
+          document.querySelector("#members-page h2").textContent;
+        let activityName = null;
+
+        // 提取活动名称
+        if (pageTitle.includes("会员列表") && !pageTitle.includes("全部")) {
+          activityName = pageTitle.replace("会员列表", "").trim();
+        }
+
+        addMember(newMember, activityName);
+        document.getElementById("add-member-modal").classList.add("hidden");
+        form.reset();
+      }
+
+      // 添加排课
+      function addSchedule(scheduleItem) {
+        schedule.push(scheduleItem);
+        saveData();
+        renderScheduleTable();
+      }
+
+      // 编辑排课
+      function editSchedule(index) {
+        const scheduleItem = schedule[index];
+        document.querySelector('input[name="time"]').value = scheduleItem.time;
+        document.querySelector('input[name="monday"]').value =
+          scheduleItem.monday || "";
+        document.querySelector('input[name="tuesday"]').value =
+          scheduleItem.tuesday || "";
+        document.querySelector('input[name="wednesday"]').value =
+          scheduleItem.wednesday || "";
+        document.querySelector('input[name="thursday"]').value =
+          scheduleItem.thursday || "";
+        document.querySelector('input[name="friday"]').value =
+          scheduleItem.friday || "";
+        document.querySelector('input[name="saturday"]').value =
+          scheduleItem.saturday || "";
+        document.querySelector('input[name="sunday"]').value =
+          scheduleItem.sunday || "";
+
+        // 显示模态框
+        document
+          .getElementById("add-schedule-modal")
+          .classList.remove("hidden");
+        document.querySelector("#add-schedule-modal h3").textContent =
+          "编辑排课";
+
+        // 修改表单提交事件
+        const form = document.getElementById("add-schedule-form");
+        form.onsubmit = function (e) {
+          e.preventDefault();
+          const updatedSchedule = {
+            time: form.elements.time.value,
+            monday: form.elements.monday.value,
+            tuesday: form.elements.tuesday.value,
+            wednesday: form.elements.wednesday.value,
+            thursday: form.elements.thursday.value,
+            friday: form.elements.friday.value,
+            saturday: form.elements.saturday.value,
+            sunday: form.elements.sunday.value,
+          };
+          schedule[index] = updatedSchedule;
+          saveData();
+          renderScheduleTable();
+          document.getElementById("add-schedule-modal").classList.add("hidden");
+          form.reset();
+          // 恢复表单提交事件
+          form.onsubmit = addScheduleFormSubmit;
+          document.querySelector("#add-schedule-modal h3").textContent =
+            "添加排课";
+        };
+      }
+
+      // 删除排课
+      function deleteSchedule(index) {
+        if (confirm("确定要删除这个排课吗？")) {
+          schedule.splice(index, 1);
+          saveData();
+          renderScheduleTable();
+        }
+      }
+
+      // 排课表单提交事件
+      function addScheduleFormSubmit(e) {
+        e.preventDefault();
+        const form = e.target;
+        const newSchedule = {
+          time: form.elements.time.value,
+          monday: form.elements.monday.value,
+          tuesday: form.elements.tuesday.value,
+          wednesday: form.elements.wednesday.value,
+          thursday: form.elements.thursday.value,
+          friday: form.elements.friday.value,
+          saturday: form.elements.saturday.value,
+          sunday: form.elements.sunday.value,
+        };
+        addSchedule(newSchedule);
+        document.getElementById("add-schedule-modal").classList.add("hidden");
+        form.reset();
+      }
+
+      // 添加不确定情况
+      function addUncertain(uncertainItem) {
+        uncertain.push(uncertainItem);
+        saveData();
+        renderUncertainTable();
+      }
+
+      // 编辑不确定情况
+      function editUncertain(index) {
+        const uncertainItem = uncertain[index];
+        document.querySelector('input[name="date"]').value = uncertainItem.date;
+        document.querySelector('input[name="time"]').value = uncertainItem.time;
+        document.querySelector('input[name="name"]').value =
+          uncertainItem.name || "";
+        document.querySelector('input[name="course"]').value =
+          uncertainItem.course;
+        document.querySelector('textarea[name="remark"]').value =
+          uncertainItem.remark || "";
+
+        // 显示模态框
+        document
+          .getElementById("add-uncertain-modal")
+          .classList.remove("hidden");
+        document.querySelector("#add-uncertain-modal h3").textContent =
+          "编辑不确定情况";
+
+        // 修改表单提交事件
+        const form = document.getElementById("add-uncertain-form");
+        form.onsubmit = function (e) {
+          e.preventDefault();
+          const updatedUncertain = {
+            date: form.elements.date.value,
+            time: form.elements.time.value,
+            name: form.elements.name.value,
+            course: form.elements.course.value,
+            remark: form.elements.remark.value,
+          };
+          uncertain[index] = updatedUncertain;
+          saveData();
+          renderUncertainTable();
+          document
+            .getElementById("add-uncertain-modal")
+            .classList.add("hidden");
+          form.reset();
+          // 恢复表单提交事件
+          form.onsubmit = addUncertainFormSubmit;
+          document.querySelector("#add-uncertain-modal h3").textContent =
+            "添加不确定情况";
+        };
+      }
+
+      // 删除不确定情况
+      function deleteUncertain(index) {
+        if (confirm("确定要删除这个不确定情况吗？")) {
+          uncertain.splice(index, 1);
+          saveData();
+          renderUncertainTable();
+        }
+      }
+
+      // 不确定情况表单提交事件
+      function addUncertainFormSubmit(e) {
+        e.preventDefault();
+        const form = e.target;
+        const newUncertain = {
+          date: form.elements.date.value,
+          time: form.elements.time.value,
+          name: form.elements.name.value,
+          course: form.elements.course.value,
+          remark: form.elements.remark.value,
+        };
+        addUncertain(newUncertain);
+        document.getElementById("add-uncertain-modal").classList.add("hidden");
+        form.reset();
+      }
+
+      // 添加不定时上课
+      function addIrregular(irregularItem) {
+        irregular.push(irregularItem);
+        saveData();
+        renderIrregularTable();
+      }
+
+      // 编辑不定时上课
+      function editIrregular(index) {
+        const irregularItem = irregular[index];
+        document.querySelector('input[name="date"]').value = irregularItem.date;
+        document.querySelector('input[name="time"]').value = irregularItem.time;
+        document.querySelector('input[name="name"]').value =
+          irregularItem.name || "";
+        document.querySelector('input[name="course"]').value =
+          irregularItem.course;
+        document.querySelector('textarea[name="remark"]').value =
+          irregularItem.remark || "";
+
+        // 显示模态框
+        document
+          .getElementById("add-irregular-modal")
+          .classList.remove("hidden");
+        document.querySelector("#add-irregular-modal h3").textContent =
+          "编辑不定时上课";
+
+        // 修改表单提交事件
+        const form = document.getElementById("add-irregular-form");
+        form.onsubmit = function (e) {
+          e.preventDefault();
+          const updatedIrregular = {
+            date: form.elements.date.value,
+            time: form.elements.time.value,
+            name: form.elements.name.value,
+            course: form.elements.course.value,
+            remark: form.elements.remark.value,
+          };
+          irregular[index] = updatedIrregular;
+          saveData();
+          renderIrregularTable();
+          document
+            .getElementById("add-irregular-modal")
+            .classList.add("hidden");
+          form.reset();
+          // 恢复表单提交事件
+          form.onsubmit = addIrregularFormSubmit;
+          document.querySelector("#add-irregular-modal h3").textContent =
+            "添加不定时上课";
+        };
+      }
+
+      // 删除不定时上课
+      function deleteIrregular(index) {
+        if (confirm("确定要删除这个不定时上课吗？")) {
+          irregular.splice(index, 1);
+          if (!saveData()) {
+            alert("数据保存失败，请检查数据格式！");
+          }
+          renderIrregularTable();
+        }
+      }
+
+      // 不定时上课表单提交事件
+      function addIrregularFormSubmit(e) {
+        e.preventDefault();
+        const form = e.target;
+        const newIrregular = {
+          date: form.elements.date.value,
+          time: form.elements.time.value,
+          name: form.elements.name.value,
+          course: form.elements.course.value,
+          remark: form.elements.remark.value,
+        };
+        addIrregular(newIrregular);
+        document.getElementById("add-irregular-modal").classList.add("hidden");
+        form.reset();
+      }
+
+      // 批量添加不确定情况
+      function addBatchUncertain() {}
+
+      // 批量添加不定时上课
+      function addBatchIrregular() {}
+
+      // 批量添加会员信息
+      function addBatchMembers() {}
+
+      // 页面加载完成后初始化
+      document.addEventListener("DOMContentLoaded", function () {
+        // 初始化应用
+        initializeApp();
+
+        // 导航切换
+        document
+          .getElementById("nav-members")
+          .addEventListener("click", function () {
+            document.getElementById("members-page").classList.remove("hidden");
+            document.getElementById("schedule-page").classList.add("hidden");
+            this.classList.remove("btn-outline");
+            this.classList.add("btn-primary");
+            document
+              .getElementById("nav-schedule")
+              .classList.remove("btn-primary");
+            document
+              .getElementById("nav-schedule")
+              .classList.add("btn-outline");
+            // 自动执行对应模块的exitSearch()，确保搜索状态重置
+            exitSearch("schedule");
+            exitSearch("uncertain");
+            exitSearch("irregular");
+          });
+
+        document
+          .getElementById("nav-schedule")
+          .addEventListener("click", function () {
+            document.getElementById("members-page").classList.add("hidden");
+            document.getElementById("schedule-page").classList.remove("hidden");
+            this.classList.remove("btn-outline");
+            this.classList.add("btn-primary");
+            document
+              .getElementById("nav-members")
+              .classList.remove("btn-primary");
+            document.getElementById("nav-members").classList.add("btn-outline");
+            // 自动执行对应模块的exitSearch()，确保搜索状态重置
+            exitSearch("members");
+          });
+
+        // 添加会员按钮
+        document
+          .getElementById("add-member-btn")
+          .addEventListener("click", function () {
+            document
+              .getElementById("add-member-modal")
+              .classList.remove("hidden");
+            document.getElementById("add-member-form").reset();
+            // 确保表单提交事件是添加会员
+            document.getElementById("add-member-form").onsubmit =
+              addMemberFormSubmit;
+          });
+
+        // 关闭模态框
+        document
+          .getElementById("close-modal")
+          .addEventListener("click", function () {
+            document.getElementById("add-member-modal").classList.add("hidden");
+            // 重置表单提交事件为默认的添加逻辑
+            document.getElementById("add-member-form").onsubmit =
+              addMemberFormSubmit;
+          });
+
+        document
+          .getElementById("cancel-add")
+          .addEventListener("click", function () {
+            document.getElementById("add-member-modal").classList.add("hidden");
+            // 重置表单提交事件为默认的添加逻辑
+            document.getElementById("add-member-form").onsubmit =
+              addMemberFormSubmit;
+          });
+
+        // 关闭续费模态框
+        document
+          .getElementById("close-renew-modal")
+          .addEventListener("click", function () {
+            document
+              .getElementById("renew-member-modal")
+              .classList.add("hidden");
+          });
+
+        document
+          .getElementById("cancel-renew")
+          .addEventListener("click", function () {
+            document
+              .getElementById("renew-member-modal")
+              .classList.add("hidden");
+          });
+
+        // 导出按钮
+        document
+          .getElementById("export-members")
+          .addEventListener("click", exportMembersToExcel);
+        document
+          .getElementById("export-schedule")
+          .addEventListener("click", function () {
+            // 导出排课表、不确定情况和不定时上课为一个Excel文件
+            const wb = XLSX.utils.book_new();
+
+            // 导出排课表
+            const cleanedSchedule = cleanData(schedule);
+            const scheduleWs = XLSX.utils.json_to_sheet(cleanedSchedule);
+            XLSX.utils.book_append_sheet(wb, scheduleWs, "排课表");
+
+            // 导出不确定情况
+            if (uncertain.length > 0) {
+              const cleanedUncertain = cleanData(uncertain);
+              const uncertainWs = XLSX.utils.json_to_sheet(cleanedUncertain);
+              XLSX.utils.book_append_sheet(wb, uncertainWs, "不确定情况");
+            }
+
+            // 导出不定时上课
+            if (irregular.length > 0) {
+              const cleanedIrregular = cleanData(irregular);
+              const irregularWs = XLSX.utils.json_to_sheet(cleanedIrregular);
+              XLSX.utils.book_append_sheet(wb, irregularWs, "不定时上课");
+            }
+
+            XLSX.writeFile(wb, "排课管理.xlsx");
+          });
+
+        // 导入按钮
+        document
+          .getElementById("import-members")
+          .addEventListener("click", function () {
+            document.getElementById("file-input").click();
+          });
+
+        document
+          .getElementById("import-schedule")
+          .addEventListener("click", function () {
+            document.getElementById("schedule-file-input").click();
+          });
+
+        // 保存按钮点击事件
+        document
+          .getElementById("refresh-data-btn")
+          .addEventListener("click", function () {
+            location.reload();
+          });
+
+        document.addEventListener("keydown", function (e) {
+          if ((e.ctrlKey || e.metaKey) && e.key === "r") {
+            e.preventDefault();
+            location.reload();
+          }
+        });
+
+        // 添加排课按钮
+        document
+          .getElementById("add-schedule-btn")
+          .addEventListener("click", function () {
+            document
+              .getElementById("add-schedule-modal")
+              .classList.remove("hidden");
+            document.getElementById("add-schedule-form").reset();
+            // 确保表单提交事件是添加排课
+            document.getElementById("add-schedule-form").onsubmit =
+              addScheduleFormSubmit;
+            document.querySelector("#add-schedule-modal h3").textContent =
+              "添加排课";
+          });
+
+        // 添加不确定情况按钮
+        document
+          .getElementById("add-uncertain-btn")
+          .addEventListener("click", function () {
+            document
+              .getElementById("add-uncertain-modal")
+              .classList.remove("hidden");
+            document.getElementById("add-uncertain-form").reset();
+            // 确保表单提交事件是添加不确定情况
+            document.getElementById("add-uncertain-form").onsubmit =
+              addUncertainFormSubmit;
+            document.querySelector("#add-uncertain-modal h3").textContent =
+              "添加不确定情况";
+          });
+
+        // 添加不定时上课按钮
+        document
+          .getElementById("add-irregular-btn")
+          .addEventListener("click", function () {
+            document
+              .getElementById("add-irregular-modal")
+              .classList.remove("hidden");
+            document.getElementById("add-irregular-form").reset();
+            // 确保表单提交事件是添加不定时上课
+            document.getElementById("add-irregular-form").onsubmit =
+              addIrregularFormSubmit;
+            document.querySelector("#add-irregular-modal h3").textContent =
+              "添加不定时上课";
+          });
+
+        // 关闭排课模态框
+        document
+          .getElementById("close-schedule-modal")
+          .addEventListener("click", function () {
+            document
+              .getElementById("add-schedule-modal")
+              .classList.add("hidden");
+            // 重置表单提交事件为默认的添加逻辑
+            document.getElementById("add-schedule-form").onsubmit =
+              addScheduleFormSubmit;
+          });
+
+        document
+          .getElementById("cancel-schedule")
+          .addEventListener("click", function () {
+            document
+              .getElementById("add-schedule-modal")
+              .classList.add("hidden");
+            // 重置表单提交事件为默认的添加逻辑
+            document.getElementById("add-schedule-form").onsubmit =
+              addScheduleFormSubmit;
+          });
+
+        // 关闭不确定情况模态框
+        document
+          .getElementById("close-uncertain-modal")
+          .addEventListener("click", function () {
+            document
+              .getElementById("add-uncertain-modal")
+              .classList.add("hidden");
+            // 重置表单提交事件为默认的添加逻辑
+            document.getElementById("add-uncertain-form").onsubmit =
+              addUncertainFormSubmit;
+          });
+
+        document
+          .getElementById("cancel-uncertain")
+          .addEventListener("click", function () {
+            document
+              .getElementById("add-uncertain-modal")
+              .classList.add("hidden");
+            // 重置表单提交事件为默认的添加逻辑
+            document.getElementById("add-uncertain-form").onsubmit =
+              addUncertainFormSubmit;
+          });
+
+        // 关闭不定时上课模态框
+        document
+          .getElementById("close-irregular-modal")
+          .addEventListener("click", function () {
+            document
+              .getElementById("add-irregular-modal")
+              .classList.add("hidden");
+            // 重置表单提交事件为默认的添加逻辑
+            document.getElementById("add-irregular-form").onsubmit =
+              addIrregularFormSubmit;
+          });
+
+        document
+          .getElementById("cancel-irregular")
+          .addEventListener("click", function () {
+            document
+              .getElementById("add-irregular-modal")
+              .classList.add("hidden");
+            // 重置表单提交事件为默认的添加逻辑
+            document.getElementById("add-irregular-form").onsubmit =
+              addIrregularFormSubmit;
+          });
+
+        // 关闭编辑班级学生模态框
+        document
+          .getElementById("close-class-students-modal")
+          .addEventListener("click", function () {
+            document
+              .getElementById("edit-class-students-modal")
+              .classList.add("hidden");
+          });
+
+        document
+          .getElementById("cancel-class-students")
+          .addEventListener("click", function () {
+            document
+              .getElementById("edit-class-students-modal")
+              .classList.add("hidden");
+          });
+
+        // 活动管理
+        document
+          .getElementById("activity-management-btn")
+          .addEventListener("click", function () {
+            renderActivityList();
+            document
+              .getElementById("activity-management-modal")
+              .classList.remove("hidden");
+          });
+
+        document
+          .getElementById("close-activity-modal")
+          .addEventListener("click", function () {
+            document
+              .getElementById("activity-management-modal")
+              .classList.add("hidden");
+          });
+
+        document
+          .getElementById("add-activity-btn")
+          .addEventListener("click", addActivity);
+
+        // 初始化活动选项
+        updateCardTypeOptions();
+
+        // 搜索按钮事件
+        document.getElementById("search-btn").addEventListener("click", searchMembers);
+        document.getElementById("search-input").addEventListener("keyup", function(e) {
+          if (e.key === "Enter") searchMembers();
+        });
+        document.getElementById("exit-search-btn").addEventListener("click", function() {
+          exitSearch("members");
+        });
+
+        document.getElementById("schedule-search-btn").addEventListener("click", searchSchedule);
+        document.getElementById("schedule-search-input").addEventListener("keyup", function(e) {
+          if (e.key === "Enter") searchSchedule();
+        });
+        document.getElementById("schedule-exit-search-btn").addEventListener("click", function() {
+          exitSearch("schedule");
+        });
+
+        document.getElementById("uncertain-search-btn").addEventListener("click", searchUncertain);
+        document.getElementById("uncertain-search-input").addEventListener("keyup", function(e) {
+          if (e.key === "Enter") searchUncertain();
+        });
+        document.getElementById("uncertain-exit-search-btn").addEventListener("click", function() {
+          exitSearch("uncertain");
+        });
+
+        document.getElementById("irregular-search-btn").addEventListener("click", searchIrregular);
+        document.getElementById("irregular-search-input").addEventListener("keyup", function(e) {
+          if (e.key === "Enter") searchIrregular();
+        });
+        document.getElementById("irregular-exit-search-btn").addEventListener("click", function() {
+          exitSearch("irregular");
+        });
+
+        // 文件导入事件
+        document.getElementById("file-input").addEventListener("change", importMembersFromExcel);
+        document.getElementById("schedule-file-input").addEventListener("change", importScheduleFromExcel);
+
+        // 编辑班级学生模态框关闭
+        document.getElementById("close-class-students-modal").addEventListener("click", function() {
+          document.getElementById("edit-class-students-modal").classList.add("hidden");
+        });
+      });
+    </script>
+  </body>
+</html>
+
