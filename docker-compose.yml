@@ -1,0 +1,53 @@
+services:
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    environment:
+      TZ: Asia/Shanghai
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-ChangeMe_Root_123456}
+      MYSQL_DATABASE: demo02
+      MYSQL_USER: xk_app
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-ChangeMe_App_123456}
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./backend/sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      TZ: Asia/Shanghai
+      NODE_ENV: production
+      PORT: "3001"
+      HOST: 0.0.0.0
+      DB_HOST: db
+      DB_PORT: "3306"
+      DB_USER: xk_app
+      DB_PASSWORD: ${MYSQL_PASSWORD:-ChangeMe_App_123456}
+      DB_NAME: demo02
+      JWT_SECRET: ${JWT_SECRET:-please_change_me}
+      BOOTSTRAP_ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      BOOTSTRAP_ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+      BOOTSTRAP_ORG_NAME: default
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - uploads:/app/.uploads
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3001/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mysql-data:
+  uploads:

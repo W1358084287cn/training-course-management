@@ -1,77 +1,80 @@
-# 消课管理系统（前后端 + MySQL）
+# 教培机构消课管理系统
 
-当前目录包含：
+给教培机构用的会员与课时管理：会员建档、课时余额、续费、排课、消课、活动课程、班级学生，支持 Excel 批量导入导出与管理员 / 教练两级权限。Vue 3 + Express + MySQL，一条 Docker 命令启动。
 
-- 前端：Vue 3（用于登录/用户管理/承载旧版业务页）
-- 旧版业务页：根目录 [index.html](file:///c:/Users/Administrator/Desktop/管理系统/index.html)（已改为通过后端 API + MySQL 持久化）
-- 后端：Node.js + Express + MySQL（提供登录/用户管理/业务数据存取）
+**在线演示**：http://49.232.131.254:3001/ （账号 `admin`，密码 `admin123`，演示数据会定期重置）
 
-## 1. MySQL 初始化
+## 工程结构
 
-1. 创建数据库（示例：`management_system`）
-2. 执行建表 SQL：
-   - [schema.sql](file:///c:/Users/Administrator/Desktop/管理系统/backend/sql/schema.sql)
+| 目录 | 说明 | 端口 |
+|------|------|------|
+| `backend/` | Node.js 22 + Express + MySQL，登录鉴权、用户管理、业务数据整包读写 | 3001 |
+| `frontend/` | Vue 3 + Vite，登录页、会员管理、排课管理、用户管理 | 5173（开发） |
+| `index.html` | 旧版业务页，登录后由后端以 `/legacy` 提供，页面数据通过 `/api/state` 落库 | — |
+| `vendor/` `emage/` | 旧版业务页用的 xlsx、Tailwind、Font Awesome 与图片（本地内置，无外网依赖） | — |
+| `Dockerfile` `docker-compose.yml` | 生产部署：Node 22 运行时 + MySQL 8.4 | 3001 |
 
-## 2. 后端启动
-
-进入后端目录：
+## 快速启动（Docker，推荐）
 
 ```bash
+docker compose up -d
+```
+
+打开 http://localhost:3001 ，默认管理员 `admin / admin123`。
+
+- 首次启动由 MySQL 自动执行 `backend/sql/schema.sql` 建表，再由后端自动创建机构与管理员账号
+- 想改密码就在 `.env` 里覆盖：`MYSQL_PASSWORD`、`JWT_SECRET`、`ADMIN_USERNAME`、`ADMIN_PASSWORD`
+- 前端在镜像构建阶段编译，运行时不依赖宿主机 Node
+
+## 本地开发
+
+```bash
+# 后端
 cd backend
-```
-
-复制环境变量文件并填写 MySQL 信息：
-
-```bash
-copy .env.example .env
-```
-
-安装依赖并启动：
-
-```bash
+copy .env.example .env     # 填 MySQL 地址与库名
 npm install
-npm run dev
-```
+npm run dev                # http://localhost:3001
 
-说明：
-
-- 库里没有用户时，会自动创建默认管理员账号（由 `.env` 的 `BOOTSTRAP_ADMIN_USERNAME/BOOTSTRAP_ADMIN_PASSWORD` 控制）
-- 后端默认端口：`3001`
-- 旧版业务页入口：`http://localhost:3001/legacy`
-
-## 3. 前端启动（Vue）
-
-进入前端目录：
-
-```bash
+# 前端
 cd frontend
 npm install
-npm run dev
+npm run dev                # 打开后先登录，再进入业务页 /legacy-page
 ```
 
-前端默认端口由 Vite 输出，访问后会先到登录页，登录后进入“业务页面” `/legacy-page`（iframe 承载后端提供的 `/legacy` 旧版界面）。
+生产模式（不用 Docker）时，先 `cd frontend && npm run build`，后端检测到 `frontend/dist` 会直接托管静态站点。
 
-## 4. 生产部署
+## 演示账号
 
-1. 构建前端：
+| 账号 | 密码 | 角色 | 可见范围 |
+|------|------|------|----------|
+| `admin` | `admin123` | 管理员 | 会员、排课、用户管理全部功能 |
+| 其它账号 | — | 教练 | 会员与排课，不能进入用户管理 |
 
-```bash
-cd frontend
-npm install
-npm run build
-```
+## 核心特性
 
-2. 启动后端（后端会在检测到 `frontend/dist` 存在时，把它作为静态站点托管）：
+- **会员管理**：建档、卡类型、有效期、剩余课时，按姓名搜索，续费课时直接累加
+- **活动课程**：按活动维度维护会员名单，活动会员与普通会员分开查看
+- **排课管理**：排课时段、班级、待定课程与非常规课程，按日期 / 姓名 / 课程检索
+- **消课与余额**：消课记录写回会员课时，余额实时可查
+- **Excel 导入导出**：会员表、排课表支持 xlsx 批量导出与导入，导入前校验字段
+- **权限控制**：管理员 / 教练两级角色，接口层校验，非管理员看不到用户管理
+- **数据持久化**：全部数据落 MySQL，同一机构多账号共享，浏览器换机器不丢数据
 
-```bash
-cd backend
-npm install
-npm run start
-```
+## 技术栈
 
-## 5. 数据接口说明
+| 层 | 技术 |
+|----|------|
+| 后端 | Node.js 22 + Express 4 + JWT + bcryptjs |
+| 数据库 | MySQL 8.4（utf8mb4，中文表名沿用既有结构） |
+| 前端 | Vue 3 + Vue Router + Vite 5 |
+| 旧版业务页 | 原生 HTML + Tailwind + xlsx.js + Font Awesome（本地 vendor） |
+| 部署 | Docker 单镜像 + docker compose，前端构建固化进镜像 |
 
-- 登录：`POST /api/auth/login`
-- 当前用户：`GET /api/auth/me`
-- 用户管理（仅 admin）：`GET/POST/PATCH/DELETE /api/users`
-- 业务数据（整包读写，旧版页面使用）：`GET/PUT /api/state`
+## 数据表
+
+`组织机构`、`用户`、`会员`、`活动课程`、`活动会员记录`、`排课时段`、`待定课程`、`非常规课程`、`班级学生`、`机构状态元数据`
+
+## 说明
+
+- `backend/.env` 不入库，仓库只保留 `.env.example`
+- 演示环境的数据为脱敏样例，会定期重置，请勿录入真实个人信息
